@@ -294,7 +294,7 @@ def load_fc_data():
 # 📊 Reliability
 # -------------------------------
 
-st.subheader("📈 Reliability (機種別)")
+st.subheader("Operational Reliability")
 
 # FC データ読み込み
 df_fc = load_fc_data()
@@ -366,7 +366,7 @@ st.plotly_chart(fig_rel_type, use_container_width=True)
 
 
 # --- Reliability グラフの下にイレギュラー内容の表を追加 ---
-st.subheader("✈ イレギュラー事象一覧")
+st.subheader("✈Data")
 
 # 表示列
 irreg_display_cols = [
@@ -835,6 +835,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
