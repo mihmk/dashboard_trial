@@ -83,24 +83,14 @@ def filter_cabin_related_irregulars(df):
     return df[mask1 & mask2]
 
 
-# -------------------------------
-# 📊 月別推移グラフ（不具合 + イレギュラー）
-# -------------------------------
-st.subheader("📊 A350全体・機種別 月別不具合件数 & イレギュラー件数推移")
+# ===============================
+# 📊 月別推移（不具合＋イレギュラー） 並行表示
+# ===============================
+show_exclude = st.checkbox("📋 Seat/IFE/Wi-Fi除外データも表示する")
 
-filter_exclude_main = st.checkbox("📋 Seat/IFE/Wi-Fiを除く（グラフ適用）")
-
-# データ選択
-if filter_exclude_main:
-    df_plot = filter_cabin_related_defects(df)
-    df_ir_plot = filter_cabin_related_irregulars(df_irregular)
-else:
-    df_plot = df
-    df_ir_plot = df_irregular
-
-# 不具合件数集計
+# 元データ集計
 monthly_by_type = (
-    df_plot.groupby(['YearMonth', 'Aircraft_Type'])
+    df_recent_1y.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
     .reset_index(name='Defect_Count')
     .pivot(index='YearMonth', columns='Aircraft_Type', values='Defect_Count')
@@ -113,9 +103,8 @@ monthly_by_type = monthly_by_type.rename(columns={
     'A350-1000': 'Defect_A350-1000'
 })
 
-# イレギュラー件数集計
 monthly_irregular = (
-    df_ir_plot.groupby(['YearMonth', 'Aircraft_Type'])
+    df_irregular.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
     .reset_index(name="Irreg_Count")
     .pivot(index="YearMonth", columns="Aircraft_Type", values="Irreg_Count")
@@ -128,14 +117,39 @@ monthly_irregular = monthly_irregular.rename(columns={
     'A350-1000': 'Irreg_A350-1000'
 })
 
-# マージ
 monthly_combined = pd.merge(monthly_by_type, monthly_irregular, on="YearMonth", how="outer").fillna(0)
-monthly_combined = monthly_combined.sort_values("YearMonth")
 
-# グラフ描画
+# 除外データも集計
+if show_exclude:
+    df_ex = filter_cabin_related_defects(df_recent_1y)
+    ir_ex = filter_cabin_related_irregulars(df_irregular)
+
+    monthly_by_type_ex = (
+        df_ex.groupby(['YearMonth', 'Aircraft_Type'])
+        .size()
+        .reset_index(name='Defect_Count_Ex')
+        .pivot(index='YearMonth', columns='Aircraft_Type', values='Defect_Count_Ex')
+        .fillna(0)
+        .reset_index()
+    )
+    monthly_by_type_ex['Defect_Total_Ex'] = monthly_by_type_ex[['A350-900', 'A350-1000']].sum(axis=1)
+
+    monthly_irregular_ex = (
+        ir_ex.groupby(['YearMonth', 'Aircraft_Type'])
+        .size()
+        .reset_index(name="Irreg_Count_Ex")
+        .pivot(index="YearMonth", columns="Aircraft_Type", values="Irreg_Count_Ex")
+        .fillna(0)
+        .reset_index()
+    )
+    monthly_irregular_ex['Irreg_Total_Ex'] = monthly_irregular_ex[['A350-900', 'A350-1000']].sum(axis=1)
+
+    monthly_combined_ex = pd.merge(monthly_by_type_ex, monthly_irregular_ex, on="YearMonth", how="outer").fillna(0)
+
+# グラフ表示
 fig_total = go.Figure()
 
-# 折れ線（不具合）- 左軸
+# 元データ（実線）
 for col in ["Defect_A350-900", "Defect_A350-1000", "Defect_Total"]:
     fig_total.add_trace(go.Scatter(
         x=monthly_combined["YearMonth"],
@@ -144,25 +158,42 @@ for col in ["Defect_A350-900", "Defect_A350-1000", "Defect_Total"]:
         name=f"不具合 {col.replace('Defect_', '')}",
         yaxis="y1"
     ))
-
-# 棒（イレギュラー）- 右軸
 fig_total.add_trace(go.Bar(
     x=monthly_combined["YearMonth"],
     y=monthly_combined["Irreg_Total"],
     name="イレギュラー件数",
     yaxis="y2",
-    opacity=0.5
+    opacity=0.4
 ))
 
+# 除外データ（点線）
+if show_exclude:
+    for col in ["A350-900", "A350-1000", "Defect_Total_Ex"]:
+        fig_total.add_trace(go.Scatter(
+            x=monthly_combined_ex["YearMonth"],
+            y=monthly_combined_ex[col] if col != "Defect_Total_Ex" else monthly_combined_ex[col],
+            mode="lines+markers",
+            line=dict(dash="dot"),
+            name=f"除外 不具合 {col.replace('Defect_', '')}",
+            yaxis="y1"
+        ))
+    fig_total.add_trace(go.Bar(
+        x=monthly_combined_ex["YearMonth"],
+        y=monthly_combined_ex["Irreg_Total_Ex"],
+        name="除外 イレギュラー件数",
+        yaxis="y2",
+        opacity=0.4
+    ))
+
 fig_total.update_layout(
-    title="A350全体・機種別 月別不具合件数 & イレギュラー件数",
-    xaxis=dict(type="category", title="年月"),
+    title="A350全体・機種別 月別不具合件数 & イレギュラー件数（除外データ並行表示）",
+    xaxis=dict(type="category"),
     yaxis=dict(title="不具合件数", side="left"),
     yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
     barmode="overlay"
 )
-
 st.plotly_chart(fig_total, use_container_width=True)
+
 
 
 
@@ -614,6 +645,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
