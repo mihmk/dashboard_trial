@@ -4,12 +4,14 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 from pandas.tseries.offsets import DateOffset
-import win32com.client
 import time
+import platform
 
+# Windows 環境のみ win32com を読み込み
+if platform.system() == "Windows":
+    import win32com.client
 
 st.set_page_config(page_title="A350 Dashboard with COA POST Count", layout="wide")
-
 
 @st.cache_data
 def load_data():
@@ -35,18 +37,14 @@ def load_data():
         'A350-1000' if x in [f"JA{str(i).zfill(2)}WJ" for i in range(1, 11)] else 'その他'))
     return df
 
-
 def is_seat_related(row):
     return row['ATA_Chapter'] == '00' and 'seat' in str(row['MOD_Description']).lower()
 
-
 def filter_cabin_related(df):
-    # 除外対象ATAサブチャプターパターン
     exclude_patterns = ["2520", "2521", "2528"] + [f"442{i}" for i in range(10)] + [f"443{i}" for i in range(10)]
     mask1 = ~df['ATA_SubChapter'].isin(exclude_patterns)
     mask2 = ~( (df['ATA_Chapter'] == '00') & df['MOD_Description'].str.lower().str.contains('seat') )
     return df[mask1 & mask2]
-
 
 df = load_data()
 
@@ -526,7 +524,6 @@ with col2:
 with col3:
     coa_z = st.text_input("Z (1桁)", max_chars=1)
 
-# COAの組み立て（例：COA12-34567ER01）
 full_coa_code = f"COA{coa_xx}{coa_yyyyy}ER0{coa_z}"
 
 # -------------------------------
@@ -534,53 +531,51 @@ full_coa_code = f"COA{coa_xx}{coa_yyyyy}ER0{coa_z}"
 # -------------------------------
 if st.button("検索"):
     if len(coa_xx) == 2 and len(coa_yyyyy) == 5 and len(coa_z) == 1:
-        try:
-            # SAP接続
-            SapGuiAuto = win32com.client.GetObject("SAPGUI")
-            application = SapGuiAuto.GetScriptingEngine
-            connection = application.Children(0)
-            session = connection.Children(0)
+        if platform.system() == "Windows":
+            try:
+                # SAP接続処理（Windows環境限定）
+                SapGuiAuto = win32com.client.GetObject("SAPGUI")
+                application = SapGuiAuto.GetScriptingEngine
+                connection = application.Children(0)
+                session = connection.Children(0)
 
-            # Variant Tableトランザクションへ移動
-            session.findById("wnd[0]/tbar[0]/okcd").Text = "/NZDMPM_VAR_TAB_DISP"
-            session.findById("wnd[0]/tbar[0]/btn[0]").press()
+                session.findById("wnd[0]/tbar[0]/okcd").Text = "/NZDMPM_VAR_TAB_DISP"
+                session.findById("wnd[0]/tbar[0]/btn[0]").press()
 
-            # Variant Table画面入力
-            session.findById("wnd[0]/usr/radP_RBVT").Select()
-            session.findById("wnd[0]/usr/ctxtP_VTAB").Text = "D_AC_350"
-            session.findById("wnd[0]/usr/radP_RBCVD").Select()
-            session.findById("wnd[0]/tbar[1]/btn[8]").press()
+                session.findById("wnd[0]/usr/radP_RBVT").Select()
+                session.findById("wnd[0]/usr/ctxtP_VTAB").Text = "D_AC_350"
+                session.findById("wnd[0]/usr/radP_RBCVD").Select()
+                session.findById("wnd[0]/tbar[1]/btn[8]").press()
 
-            # ALVグリッドからデータを取得
-            alv = session.findById("wnd[0]/usr/cntlCONTAINER_ALV/shellcont/shell")
-            row_count = alv.RowCount
+                alv = session.findById("wnd[0]/usr/cntlCONTAINER_ALV/shellcont/shell")
+                row_count = alv.RowCount
 
-            result = []
-            for i in range(row_count):
-                chara = alv.GetCellValue(i, "CHARS")
-                if full_coa_code in chara:
-                    for ship in [
-                        "JA01XJ", "JA02XJ", "JA03XJ", "JA04XJ", "JA05XJ", "JA06XJ", "JA07XJ",
-                        "JA08XJ", "JA09XJ", "JA10XJ", "JA11XJ", "JA12XJ", "JA14XJ", "JA15XJ", "JA16XJ",
-                        "JA17XJ", "JA18XJ", "JA19XJ", "JA01WJ", "JA02WJ", "JA03WJ", "JA04WJ", "JA05WJ",
-                        "JA06WJ", "JA07WJ", "JA08WJ", "JA09WJ", "JA10WJ", "JA11WJ", "JA12WJ", "JA13WJ"
-                    ]:
-                        try:
-                            status = alv.GetCellValue(i, ship)
-                            result.append({'Ship': ship, 'Status': status})
-                        except:
-                            continue
+                result = []
+                for i in range(row_count):
+                    chara = alv.GetCellValue(i, "CHARS")
+                    if full_coa_code in chara:
+                        for ship in [
+                            "JA01XJ", "JA02XJ", "JA03XJ", "JA04XJ", "JA05XJ", "JA06XJ", "JA07XJ",
+                            "JA08XJ", "JA09XJ", "JA10XJ", "JA11XJ", "JA12XJ", "JA14XJ", "JA15XJ", "JA16XJ",
+                            "JA17XJ", "JA18XJ", "JA19XJ", "JA01WJ", "JA02WJ", "JA03WJ", "JA04WJ", "JA05WJ",
+                            "JA06WJ", "JA07WJ", "JA08WJ", "JA09WJ", "JA10WJ", "JA11WJ", "JA12WJ", "JA13WJ"
+                        ]:
+                            try:
+                                status = alv.GetCellValue(i, ship)
+                                result.append({'Ship': ship, 'Status': status})
+                            except:
+                                continue
 
-            # POST(C)だけを抽出
-            df = pd.DataFrame(result)
-            df_post = df[df['Status'] == 'C']
-            post_count = df_post.shape[0]
+                df_result = pd.DataFrame(result)
+                df_post = df_result[df_result['Status'] == 'C']
+                post_count = df_post.shape[0]
 
-            # 結果表示
-            st.success(f"{full_coa_code} のPOST状態（C）の機番数： {post_count} 機")
-            st.dataframe(df_post)
+                st.success(f"{full_coa_code} のPOST状態（C）の機番数： {post_count} 機")
+                st.dataframe(df_post)
 
-        except Exception as e:
-            st.error(f"SAPアクセスエラー: {e}")
+            except Exception as e:
+                st.error(f"SAPアクセスエラー: {e}")
+        else:
+            st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
