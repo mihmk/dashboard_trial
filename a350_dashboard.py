@@ -414,18 +414,17 @@ df_irreg_period = df_irregular[
 # ================================
 st.subheader("Chart")
 
-# 期間選択（スライダー）
+# 期間選択（スライダー） - ユニークキー付きで重複防止
 min_date = df_irregular["Date"].min().date()
 max_date = df_irregular["Date"].max().date()
 start_date, end_date = st.slider(
-    "期間を選択してください",
+    "期間を選択してください（Chart用）",
     min_value=min_date,
     max_value=max_date,
     value=(min_date, max_date),
     format="YYYY-MM-DD",
-    key="slider_ata_chart"  # ← ユニークキーを付与
+    key="slider_ata_chart"
 )
-
 
 # 集計関数をキャッシュ
 @st.cache_data
@@ -445,12 +444,14 @@ def aggregate_irregular_by_ata(df, start, end):
 # 集計実行
 ata_counts, categories = aggregate_irregular_by_ata(df_irregular, start_date, end_date)
 
-# 棒グラフ作成
+# 横棒グラフ作成（見やすさ調整）
 fig_bar = go.Figure(go.Bar(
     x=ata_counts["Count"],
     y=ata_counts["ATA_SubChapter"].astype(str),
     orientation="h",
-    marker=dict(color="skyblue")
+    marker=dict(color="skyblue"),
+    text=ata_counts["Count"],  # 件数表示
+    textposition="outside"
 ))
 
 fig_bar.update_layout(
@@ -461,8 +462,9 @@ fig_bar.update_layout(
         categoryorder="array",
         categoryarray=categories
     ),
-    height=min(max(400, len(categories) * 40), 1200),  # 高さ制限
-    margin=dict(l=100, r=50, t=50, b=50)
+    height=min(max(500, len(categories) * 35), 1000),  # 棒を太めに
+    margin=dict(l=120, r=50, t=50, b=50),
+    bargap=0.15  # 棒と棒の間隔
 )
 
 st.plotly_chart(fig_bar, use_container_width=True)
@@ -918,6 +920,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
