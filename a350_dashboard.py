@@ -272,9 +272,7 @@ def load_fc_data():
 # -------------------------------
 # 📊 Reliability
 # -------------------------------
-# -------------------------------
-# 📊 Reliability（機種別）
-# -------------------------------
+
 st.subheader("📈 Reliability (機種別)")
 
 # FC データ読み込み
@@ -315,6 +313,7 @@ for ac_type in ["A350-900", "A350-1000"]:
         mode="lines+markers+text",
         text=df_plot["Operational_Reliability"].round(2).astype(str) + "%",
         textposition="top center",
+        textfont=dict(size=14, color="black", family="Arial Black"),  # ← サイズ・色・太さ
         name=f"{ac_type} Operational Reliability (%)",
         yaxis="y1"
     ))
@@ -793,6 +792,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
