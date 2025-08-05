@@ -79,27 +79,42 @@ df_recent_1y = df[df['Reported_Date'] >= one_year_ago]
 monthly_by_type = (
     df_recent_1y.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
-    .reset_index(name='Count')
-    .pivot(index='YearMonth', columns='Aircraft_Type', values='Count')
+    .reset_index(name='Defect_Count')
+    .pivot(index='YearMonth', columns='Aircraft_Type', values='Defect_Count')
     .fillna(0)
     .reset_index()
 )
-monthly_by_type['Total_Count'] = monthly_by_type[['A350-900', 'A350-1000']].sum(axis=1)
+monthly_by_type['Defect_Total'] = monthly_by_type[['A350-900', 'A350-1000']].sum(axis=1)
+
+# 列名に "Defect_" プレフィックスを付ける
+monthly_by_type = monthly_by_type.rename(columns={
+    'A350-900': 'Defect_A350-900',
+    'A350-1000': 'Defect_A350-1000',
+    'Defect_Total': 'Defect_Total'
+})
 
 # イレギュラー件数（機種別・月別）
 monthly_irregular = (
     df_irregular.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
-    .reset_index(name="Irregular_Count")
-    .pivot(index="YearMonth", columns="Aircraft_Type", values="Irregular_Count")
+    .reset_index(name="Irreg_Count")
+    .pivot(index="YearMonth", columns="Aircraft_Type", values="Irreg_Count")
     .fillna(0)
     .reset_index()
 )
-monthly_irregular["Irregular_Total"] = monthly_irregular[["A350-900", "A350-1000"]].sum(axis=1)
+monthly_irregular['Irreg_Total'] = monthly_irregular[['A350-900', 'A350-1000']].sum(axis=1)
 
-# マージ
+# 列名に "Irreg_" プレフィックスを付ける
+monthly_irregular = monthly_irregular.rename(columns={
+    'A350-900': 'Irreg_A350-900',
+    'A350-1000': 'Irreg_A350-1000',
+    'Irreg_Total': 'Irreg_Total'
+})
+
+# マージ（YearMonth をキーに結合）
 monthly_combined = pd.merge(monthly_by_type, monthly_irregular, on="YearMonth", how="outer").fillna(0)
 monthly_combined = monthly_combined.sort_values("YearMonth")
+
 
 # -------------------------------
 # 📊 月別推移グラフ（不具合 + イレギュラー）
@@ -586,6 +601,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
