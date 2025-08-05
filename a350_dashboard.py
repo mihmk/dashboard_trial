@@ -121,8 +121,59 @@ monthly_combined = monthly_combined.sort_values("YearMonth")
 # -------------------------------
 st.subheader("📊 A350全体・機種別 月別不具合件数 & イレギュラー件数推移")
 
-fig_total = go.Figure()
+filter_exclude_graph = st.checkbox("Seat/IFE/WiFiを除く（グラフ適用）")
 
+def filter_cabin_related_both(df_def, df_ir):
+    exclude_patterns = ["2520", "2521", "2528"] + \
+                       [f"442{i}" for i in range(10)] + \
+                       [f"443{i}" for i in range(10)]
+    mask_def = ~df_def['ATA_SubChapter'].isin(exclude_patterns) & \
+               ~( (df_def['ATA_Chapter'] == '00') & df_def['MOD_Description'].str.lower().str.contains('seat', na=False) )
+    mask_ir = ~df_ir['ATA_SubChapter'].isin(exclude_patterns) & \
+              ~( (df_ir['ATA_SubChapter'].str[:2] == '00') & df_ir['Description'].str.lower().str.contains('seat', na=False) )
+    return df_def[mask_def], df_ir[mask_ir]
+
+if filter_exclude_graph:
+    df_recent_1y_filtered, df_irregular_filtered = filter_cabin_related_both(df_recent_1y, df_irregular)
+else:
+    df_recent_1y_filtered, df_irregular_filtered = df_recent_1y, df_irregular
+
+# 不具合（月別）
+monthly_by_type = (
+    df_recent_1y_filtered.groupby(['YearMonth', 'Aircraft_Type'])
+    .size()
+    .reset_index(name='Defect_Count')
+    .pivot(index='YearMonth', columns='Aircraft_Type', values='Defect_Count')
+    .fillna(0)
+    .reset_index()
+)
+monthly_by_type['Defect_Total'] = monthly_by_type[['A350-900', 'A350-1000']].sum(axis=1)
+monthly_by_type = monthly_by_type.rename(columns={
+    'A350-900': 'Defect_A350-900',
+    'A350-1000': 'Defect_A350-1000'
+})
+
+# イレギュラー（月別）
+monthly_irregular = (
+    df_irregular_filtered.groupby(['YearMonth', 'Aircraft_Type'])
+    .size()
+    .reset_index(name="Irreg_Count")
+    .pivot(index="YearMonth", columns="Aircraft_Type", values="Irreg_Count")
+    .fillna(0)
+    .reset_index()
+)
+monthly_irregular['Irreg_Total'] = monthly_irregular[['A350-900', 'A350-1000']].sum(axis=1)
+monthly_irregular = monthly_irregular.rename(columns={
+    'A350-900': 'Irreg_A350-900',
+    'A350-1000': 'Irreg_A350-1000'
+})
+
+# マージ
+monthly_combined = pd.merge(monthly_by_type, monthly_irregular, on="YearMonth", how="outer").fillna(0)
+monthly_combined = monthly_combined.sort_values("YearMonth")
+
+# グラフ作成
+fig_total = go.Figure()
 # 折れ線（不具合）- 左軸
 for col in ["Defect_A350-900", "Defect_A350-1000", "Defect_Total"]:
     fig_total.add_trace(go.Scatter(
@@ -132,7 +183,6 @@ for col in ["Defect_A350-900", "Defect_A350-1000", "Defect_Total"]:
         name=f"不具合 {col.replace('Defect_', '')}",
         yaxis="y1"
     ))
-
 # 棒（イレギュラー）- 右軸
 fig_total.add_trace(go.Bar(
     x=monthly_combined["YearMonth"],
@@ -141,8 +191,6 @@ fig_total.add_trace(go.Bar(
     yaxis="y2",
     opacity=0.5
 ))
-
-
 fig_total.update_layout(
     title="A350全体・機種別 月別不具合件数 & イレギュラー件数",
     xaxis=dict(type="category", title="年月"),
@@ -150,8 +198,8 @@ fig_total.update_layout(
     yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
     barmode="overlay"
 )
-
 st.plotly_chart(fig_total, use_container_width=True)
+
 
 
 # -------------------------------
@@ -602,5 +650,6 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
