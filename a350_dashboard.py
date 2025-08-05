@@ -41,7 +41,7 @@ def load_irregular_data():
         "AIBTYO DLI.xlsx",
         sheet_name="EVENTS",
         skiprows=2,  # 3行目から読み込み（header=2と同じ効果）
-        usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,Y,W"
+        usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,W,Y"
     )
 
     df_ir.columns = [
@@ -49,8 +49,7 @@ def load_irregular_data():
         "Delay_Flag", "Delay_Time",
         "Cancel_Flag", "ShipChange_Flag", "RTO_Flag", "ATB_Flag",
         "Diversion_Flag", "EngShutDown_Flag", "Description", "Work_Performed",
-        "ATA_SubChapter", "Total_Maintenance_DownTime",
-        "Delay_Code"  # ← W列
+        "ATA_SubChapter","Delay_Code", "Total_Maintenance_DownTime"
     ]
 
     # Date列を日付型に変換
@@ -920,6 +919,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
