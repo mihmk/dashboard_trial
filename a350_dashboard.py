@@ -211,21 +211,16 @@ st.plotly_chart(fig_total, use_container_width=True)
 # --- FCデータ読み込み関数 ---
 @st.cache_data
 def load_fc_data():
-    import glob, os
     import re
 
-    # ファイルパス
     file_path = "FHFC(Airbus).xlsx"
-
-    # シート一覧取得
     xls = pd.ExcelFile(file_path)
     sheet_names = xls.sheet_names
-
     all_data = []
 
     for sheet in sheet_names:
         try:
-            # 年月を正規化（例: 2024DEC → 2024-12）
+            # 年月正規化
             match = re.match(r"(\d{4})([A-Z]{3})", sheet)
             if not match:
                 continue
@@ -239,43 +234,39 @@ def load_fc_data():
                 continue
             yearmonth = f"{year}-{month_map[mon_str]}"
 
-            # 該当シートをDataFrameとして読み込み
             df_sheet = pd.read_excel(file_path, sheet_name=sheet, header=None)
 
-            # A350-900（5行目〜34行目）とA350-1000（41行目〜58行目）を抽出
-            # → 行番号は0始まりなので調整
-            df_900 = df_sheet.iloc[4:34, [1, 3]].copy()
-            df_1000 = df_sheet.iloc[40:58, [1, 3]].copy()
+            # F列が "FCY" の行だけ抽出
+            mask_fcy = df_sheet.iloc[:, 5].astype(str).str.strip().str.upper() == "FCY"
+            df_fcy = df_sheet.loc[mask_fcy, [1, 3]].copy()
+            df_fcy.columns = ["Tail", "FC"]
 
-            # 列名を設定
-            df_900.columns = ["Tail", "FC"]
-            df_1000.columns = ["Tail", "FC"]
+            # A350-900 or A350-1000 判定
+            # → Tail 番号の位置から判断（JA01XJ〜JA39XJくらいがA350-900、それ以降はA350-1000）
+            def get_type(tail):
+                try:
+                    num = int(str(tail)[2:4])
+                    return "A350-900" if num <= 39 else "A350-1000"
+                except:
+                    return "Unknown"
 
-            # 機種区分を付与
-            df_900["Aircraft_Type"] = "A350-900"
-            df_1000["Aircraft_Type"] = "A350-1000"
+            df_fcy["Aircraft_Type"] = df_fcy["Tail"].apply(get_type)
+            df_fcy["YearMonth"] = yearmonth
 
-            # 月を付与
-            df_900["YearMonth"] = yearmonth
-            df_1000["YearMonth"] = yearmonth
+            # 数値化
+            df_fcy["FC"] = pd.to_numeric(df_fcy["FC"], errors="coerce")
+            df_fcy = df_fcy.dropna(subset=["FC"])
 
-            # 結合
-            all_data.append(df_900)
-            all_data.append(df_1000)
+            all_data.append(df_fcy)
 
         except Exception as e:
             st.warning(f"{sheet} 読み込み失敗: {e}")
 
-    # 全データを結合
     if all_data:
-        df_fc = pd.concat(all_data, ignore_index=True)
-        # FCは数値化
-        df_fc["FC"] = pd.to_numeric(df_fc["FC"], errors="coerce")
-        df_fc = df_fc.dropna(subset=["FC"])
+        return pd.concat(all_data, ignore_index=True)
     else:
-        df_fc = pd.DataFrame(columns=["Tail", "FC", "Aircraft_Type", "YearMonth"])
+        return pd.DataFrame(columns=["Tail", "FC", "Aircraft_Type", "YearMonth"])
 
-    return df_fc
 
 
 # -------------------------------
@@ -286,14 +277,11 @@ st.subheader("📈 Reliability")
 
 df_fc = load_fc_data()
 
-# 月別の総FC
-fc_monthly = df_fc.groupby("YearMonth")["FC"].sum().reset_index(name="Total_FC")
-
 # Irreg_Total を monthly_combined から取得
 irreg_monthly = monthly_combined[["YearMonth", "Irreg_Total"]]
 
 # マージ
-rel_df = pd.merge(fc_monthly, irreg_monthly, on="YearMonth", how="left").fillna(0)
+rel_df = pd.merge(df_fc, irreg_monthly, on="YearMonth", how="left").fillna(0)
 
 # Operational Reliability (%) 計算
 rel_df["Operational_Reliability"] = ((rel_df["Total_FC"] - rel_df["Irreg_Total"]) / rel_df["Total_FC"]) * 100
@@ -332,10 +320,6 @@ fig_rel.update_layout(
 )
 
 st.plotly_chart(fig_rel, use_container_width=True)
-
-
-
-
 
 
 # -------------------------------
@@ -786,6 +770,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
