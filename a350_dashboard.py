@@ -61,9 +61,11 @@ def filter_cabin_related_defects(df):
     exclude_patterns = ["2520", "2521", "2528"] + \
                        [f"442{i}" for i in range(10)] + \
                        [f"443{i}" for i in range(10)]
-    mask1 = ~df['ATA_SubChapter'].isin(exclude_patterns)
-    mask2 = ~( (df['ATA_Chapter'] == '00') &
-               df['MOD_Description'].str.lower().str.contains('seat', na=False) )
+    ata_sub = df['ATA_SubChapter'].astype(str)
+    ata_chap = df['ATA_Chapter'].astype(str)
+    mask1 = ~ata_sub.isin(exclude_patterns)
+    mask2 = ~((ata_chap == '00') &
+              df['MOD_Description'].astype(str).str.lower().str.contains('seat', na=False))
     return df[mask1 & mask2]
 
 # -------------------------------
@@ -73,11 +75,13 @@ def filter_cabin_related_irregulars(df):
     exclude_patterns = ["2520", "2521", "2528"] + \
                        [f"442{i}" for i in range(10)] + \
                        [f"443{i}" for i in range(10)]
-    mask1 = ~df['ATA_SubChapter'].isin(exclude_patterns)
-    mask2 = ~( (df['ATA_SubChapter'].str[:2] == '00') &
-               (df['Description'].str.lower().str.contains('seat', na=False) |
-                df['Work_Performed'].str.lower().str.contains('seat', na=False)) )
+    ata_sub = df['ATA_SubChapter'].astype(str)
+    mask1 = ~ata_sub.isin(exclude_patterns)
+    mask2 = ~((ata_sub.str[:2] == '00') &
+              (df['Description'].astype(str).str.lower().str.contains('seat', na=False) |
+               df['Work_Performed'].astype(str).str.lower().str.contains('seat', na=False)))
     return df[mask1 & mask2]
+
 
 # -------------------------------
 # 📊 月別推移グラフ（不具合 + イレギュラー）
@@ -610,6 +614,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
