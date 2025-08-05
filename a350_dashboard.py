@@ -220,27 +220,39 @@ import calendar
 def load_fc_data():
     xls = pd.ExcelFile("FHFC(Airbus).xlsx")
     fc_monthly = []
-    
+
     for sheet in xls.sheet_names:
         try:
             df_sheet = pd.read_excel(xls, sheet_name=sheet, header=None)
-            
-            # A350-900 FC
-            df_900 = df_sheet.iloc[4:34, [1, 3]].copy()  # B列(機番), D列(当月データ)
-            df_900.columns = ["Tail", "Value"]
-            df_900 = df_900.iloc[::2]  # FCだけ（奇数行がFH）
-            
-            # A350-1000 FC
-            df_1000 = df_sheet.iloc[40:58, [1, 3]].copy()
-            df_1000.columns = ["Tail", "Value"]
-            df_1000 = df_1000.iloc[::2]  # FCだけ
-            
+
+            # A350-900
+            if len(df_sheet) >= 34:  # 行数チェック
+                df_900 = df_sheet.iloc[4:34, [1, 3]].copy()  # B列, D列
+                df_900.columns = ["Tail", "Value"]
+                df_900 = df_900.iloc[::2]  # FCだけ
+            else:
+                df_900 = pd.DataFrame(columns=["Tail", "Value"])
+
+            # A350-1000
+            if len(df_sheet) >= 58:
+                df_1000 = df_sheet.iloc[40:58, [1, 3]].copy()
+                df_1000.columns = ["Tail", "Value"]
+                df_1000 = df_1000.iloc[::2]  # FCだけ
+            else:
+                df_1000 = pd.DataFrame(columns=["Tail", "Value"])
+
+            # FC合計
             total_fc = df_900["Value"].sum() + df_1000["Value"].sum()
-            fc_monthly.append({"YearMonth": sheet, "FC_Total": total_fc})
+
+            # 空シートはスキップ
+            if total_fc > 0:
+                fc_monthly.append({"YearMonth": sheet, "FC_Total": total_fc})
+
         except Exception as e:
             st.warning(f"{sheet} 読み込み失敗: {e}")
-    
+
     return pd.DataFrame(fc_monthly)
+
 
 # FCデータ
 df_fc = load_fc_data()
@@ -737,6 +749,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
