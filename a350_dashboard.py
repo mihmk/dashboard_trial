@@ -281,55 +281,58 @@ def load_fc_data():
 # -------------------------------
 # 📊 Reliability
 # -------------------------------
-# --- Reliability セクション ---
-st.header("Reliability")
-st.subheader("📊 Operational Reliability（%） & イレギュラー件数")
+# --- Reliability グラフ ---
+st.subheader("📈 Reliability")
 
-# FCデータ読み込み（前と同じ）
 df_fc = load_fc_data()
 
-# 月別FC合計
-monthly_fc = df_fc.groupby("YearMonth")["FC"].sum().reset_index(name="FC_Total")
+# 月別の総FC
+fc_monthly = df_fc.groupby("YearMonth")["FC"].sum().reset_index(name="Total_FC")
 
-# monthly_combined から Irreg_Total を取得
-irreg_data = monthly_combined[["YearMonth", "Irreg_Total"]].copy()
+# Irreg_Total を monthly_combined から取得
+irreg_monthly = monthly_combined[["YearMonth", "Irreg_Total"]]
 
 # マージ
-df_merge = pd.merge(monthly_fc, irreg_data, on="YearMonth", how="inner")
+rel_df = pd.merge(fc_monthly, irreg_monthly, on="YearMonth", how="left").fillna(0)
 
-# Operational Reliability計算
-df_merge["Operational_Reliability"] = ((df_merge["FC_Total"] - df_merge["Irreg_Total"]) / df_merge["FC_Total"]) * 100
+# Operational Reliability (%) 計算
+rel_df["Operational_Reliability"] = ((rel_df["Total_FC"] - rel_df["Irreg_Total"]) / rel_df["Total_FC"]) * 100
 
 # グラフ作成
 fig_rel = go.Figure()
 
-# 線グラフ（Operational Reliability %）
+# 折れ線（Operational Reliability）
 fig_rel.add_trace(go.Scatter(
-    x=df_merge["YearMonth"],
-    y=df_merge["Operational_Reliability"],
-    mode="lines+markers",
+    x=rel_df["YearMonth"],
+    y=rel_df["Operational_Reliability"],
+    mode="lines+markers+text",
+    text=rel_df["Operational_Reliability"].round(2).astype(str) + "%",
+    textposition="top center",
     name="Operational Reliability (%)",
     yaxis="y1"
 ))
 
-# 棒グラフ（Irreg_Total）
+# 棒グラフ（Irreg Total）
 fig_rel.add_trace(go.Bar(
-    x=df_merge["YearMonth"],
-    y=df_merge["Irreg_Total"],
+    x=rel_df["YearMonth"],
+    y=rel_df["Irreg_Total"],
     name="イレギュラー件数",
     yaxis="y2",
     opacity=0.5
 ))
 
+# レイアウト調整（縦軸範囲を95〜100に固定）
 fig_rel.update_layout(
+    title="Operational Reliability (%) & イレギュラー件数（月別）",
     xaxis=dict(type="category", title="年月"),
-    yaxis=dict(title="Operational Reliability (%)", side="left", range=[0, 105]),
+    yaxis=dict(title="Operational Reliability (%)", side="left", range=[95, 100]),
     yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
     barmode="overlay",
     hovermode="x unified"
 )
 
 st.plotly_chart(fig_rel, use_container_width=True)
+
 
 
 
@@ -783,6 +786,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
