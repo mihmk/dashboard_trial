@@ -344,6 +344,23 @@ fig_rel_type.update_layout(
 st.plotly_chart(fig_rel_type, use_container_width=True)
 
 
+# --- Reliability グラフの下にイレギュラー内容の表を追加 ---
+st.subheader("✈ イレギュラー事象一覧")
+
+# 表示したい列を抽出
+irreg_display_cols = [
+    "Date", "FLT_Number", "Tail", "Branch",
+    "Delay_Flag", "Delay_Time",
+    "ATA_SubChapter", "Description", "Work_Performed"
+]
+
+# 日付順に並べ替え（最新が上）
+df_irregular_sorted = df_irregular[irreg_display_cols].sort_values("Date", ascending=False)
+
+# 表示
+st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
+
+
 # -------------------------------
 # 📊 不具合件数上位10のMOD_Description月次推移（機種別）
 # -------------------------------
@@ -792,6 +809,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
