@@ -124,23 +124,24 @@ st.subheader("📊 A350全体・機種別 月別不具合件数 & イレギュ�
 fig_total = go.Figure()
 
 # 折れ線（不具合）- 左軸
-for col in ["A350-900", "A350-1000", "Total_Count"]:
+for col in ["Defect_A350-900", "Defect_A350-1000", "Defect_Total"]:
     fig_total.add_trace(go.Scatter(
         x=monthly_combined["YearMonth"],
         y=monthly_combined[col],
         mode="lines+markers",
-        name=f"不具合 {col}",
+        name=f"不具合 {col.replace('Defect_', '')}",
         yaxis="y1"
     ))
 
 # 棒（イレギュラー）- 右軸
 fig_total.add_trace(go.Bar(
     x=monthly_combined["YearMonth"],
-    y=monthly_combined["Irregular_Total"],
+    y=monthly_combined["Irreg_Total"],
     name="イレギュラー件数",
     yaxis="y2",
     opacity=0.5
 ))
+
 
 fig_total.update_layout(
     title="A350全体・機種別 月別不具合件数 & イレギュラー件数",
@@ -601,6 +602,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
