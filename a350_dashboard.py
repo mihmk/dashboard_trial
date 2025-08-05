@@ -273,6 +273,9 @@ def load_fc_data():
 # 📊 Reliability
 # -------------------------------
 # --- Reliability グラフ ---
+# -------------------------------
+# 📊 Reliability
+# -------------------------------
 st.subheader("📈 Reliability")
 
 # FC データ読み込み
@@ -282,9 +285,13 @@ df_fc = load_fc_data()
 df_fc_monthly = df_fc.groupby("YearMonth", as_index=False)["FC"].sum()
 df_fc_monthly.rename(columns={"FC": "Total_FC"}, inplace=True)
 
-# Irregular 件数データ（例: df_irreg）とマージ
-# ※ df_irreg には YearMonth 列と Irreg_Total 列が必要
-rel_df = pd.merge(df_fc_monthly, df_irreg[["YearMonth", "Irreg_Total"]], on="YearMonth", how="left")
+# Irregular 件数データとマージ（monthly_irregular を使用）
+rel_df = pd.merge(
+    df_fc_monthly,
+    monthly_irregular[["YearMonth", "Irreg_Total"]],
+    on="YearMonth",
+    how="left"
+)
 
 # Operational Reliability (%) を計算
 rel_df["Operational_Reliability"] = ((rel_df["Total_FC"] - rel_df["Irreg_Total"]) / rel_df["Total_FC"]) * 100
@@ -295,7 +302,6 @@ rel_df = rel_df.fillna({"Irreg_Total": 0, "Operational_Reliability": 100})
 # グラフ作成
 fig_rel = go.Figure()
 
-# 折れ線（Operational Reliability）
 fig_rel.add_trace(go.Scatter(
     x=rel_df["YearMonth"],
     y=rel_df["Operational_Reliability"],
@@ -306,7 +312,6 @@ fig_rel.add_trace(go.Scatter(
     yaxis="y1"
 ))
 
-# 棒グラフ（Irreg Total）
 fig_rel.add_trace(go.Bar(
     x=rel_df["YearMonth"],
     y=rel_df["Irreg_Total"],
@@ -315,7 +320,6 @@ fig_rel.add_trace(go.Bar(
     opacity=0.5
 ))
 
-# レイアウト調整（縦軸範囲を95〜100に固定）
 fig_rel.update_layout(
     title="Operational Reliability (%) & イレギュラー件数（月別）",
     xaxis=dict(type="category", title="年月"),
@@ -776,6 +780,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
