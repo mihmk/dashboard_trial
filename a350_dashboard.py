@@ -3,11 +3,12 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 from pandas.tseries.offsets import DateOffset
-import win32com.client
-import time
 import platform
 
-st.set_page_config(page_title="A350 Dashboard with COA POST Count", layout="wide")
+# Windows環境のときだけ win32com を読み込む
+if platform.system() == "Windows":
+    import win32com.client
+    import time
 
 # -------------------------------
 # データ読み込み関数
@@ -610,6 +611,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
