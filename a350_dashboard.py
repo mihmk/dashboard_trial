@@ -231,9 +231,10 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col3, col4]):
             prev_counts = ata_monthly.loc[prev_month]
 
             short_term_rate = ((latest_counts - prev_counts) / prev_counts.replace(0, pd.NA)) * 100
-            short_term_rate = short_term_rate.dropna()
-
+            short_term_rate = pd.to_numeric(short_term_rate, errors='coerce').dropna()
+            
             short_df = pd.DataFrame({
+                
                 'ATA_SubChapter': short_term_rate.index,
                 '増加率(%)': short_term_rate.round(1).values,
                 '今月件数': latest_counts[short_term_rate.index].values
@@ -559,4 +560,5 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
