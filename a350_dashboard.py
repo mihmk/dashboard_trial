@@ -212,90 +212,55 @@ st.plotly_chart(fig_total, use_container_width=True)
 # -------------------------------
 # 📊 Reliability
 # -------------------------------
-st.header("📊 Reliability")
+# --- Reliability セクション ---
+st.header("Reliability")
+st.subheader("📊 Operational Reliability（%） & イレギュラー件数")
 
-import calendar
-
-@st.cache_data
-def load_fc_data():
-    xls = pd.ExcelFile("FHFC(Airbus).xlsx")
-    fc_monthly = []
-
-    for sheet in xls.sheet_names:
-        try:
-            df_sheet = pd.read_excel(xls, sheet_name=sheet, header=None)
-
-            # A350-900
-            if len(df_sheet) >= 34:  # 行数チェック
-                df_900 = df_sheet.iloc[4:34, [1, 3]].copy()  # B列, D列
-                df_900.columns = ["Tail", "Value"]
-                df_900 = df_900.iloc[::2]  # FCだけ
-            else:
-                df_900 = pd.DataFrame(columns=["Tail", "Value"])
-
-            # A350-1000
-            if len(df_sheet) >= 58:
-                df_1000 = df_sheet.iloc[40:58, [1, 3]].copy()
-                df_1000.columns = ["Tail", "Value"]
-                df_1000 = df_1000.iloc[::2]  # FCだけ
-            else:
-                df_1000 = pd.DataFrame(columns=["Tail", "Value"])
-
-            # FC合計
-            total_fc = df_900["Value"].sum() + df_1000["Value"].sum()
-
-            # 空シートはスキップ
-            if total_fc > 0:
-                fc_monthly.append({"YearMonth": sheet, "FC_Total": total_fc})
-
-        except Exception as e:
-            st.warning(f"{sheet} 読み込み失敗: {e}")
-
-    return pd.DataFrame(fc_monthly)
-
-
-# FCデータ
+# FCデータ読み込み（前と同じ）
 df_fc = load_fc_data()
 
-# イレギュラー件数（月別）
-ir_monthly = df_irregular.groupby("YearMonth").size().reset_index(name="Irreg_Count")
+# 月別FC合計
+monthly_fc = df_fc.groupby("YearMonth")["FC"].sum().reset_index(name="FC_Total")
+
+# monthly_combined から Irreg_Total を取得
+irreg_data = monthly_combined[["YearMonth", "Irreg_Total"]].copy()
 
 # マージ
-reliability_df = pd.merge(df_fc, ir_monthly, on="YearMonth", how="left").fillna(0)
+df_merge = pd.merge(monthly_fc, irreg_data, on="YearMonth", how="inner")
 
-# Operational Interruption(%)
-reliability_df["Op_Interruption_%"] = ((reliability_df["FC_Total"] - reliability_df["Irreg_Count"]) / reliability_df["FC_Total"]) * 100
+# Operational Reliability計算
+df_merge["Operational_Reliability"] = ((df_merge["FC_Total"] - df_merge["Irreg_Total"]) / df_merge["FC_Total"]) * 100
 
-# グラフ描画
-fig_reliability = go.Figure()
+# グラフ作成
+fig_rel = go.Figure()
 
-# 折れ線（Operational Interruption）
-fig_reliability.add_trace(go.Scatter(
-    x=reliability_df["YearMonth"],
-    y=reliability_df["Op_Interruption_%"],
+# 線グラフ（Operational Reliability %）
+fig_rel.add_trace(go.Scatter(
+    x=df_merge["YearMonth"],
+    y=df_merge["Operational_Reliability"],
     mode="lines+markers",
-    name="Operational Interruption (%)",
+    name="Operational Reliability (%)",
     yaxis="y1"
 ))
 
-# 棒（イレギュラー件数）
-fig_reliability.add_trace(go.Bar(
-    x=reliability_df["YearMonth"],
-    y=reliability_df["Irreg_Count"],
+# 棒グラフ（Irreg_Total）
+fig_rel.add_trace(go.Bar(
+    x=df_merge["YearMonth"],
+    y=df_merge["Irreg_Total"],
     name="イレギュラー件数",
     yaxis="y2",
     opacity=0.5
 ))
 
-fig_reliability.update_layout(
-    title="Operational Interruption (%) & イレギュラー件数",
-    xaxis=dict(type="category"),
-    yaxis=dict(title="Operational Interruption (%)", side="left", range=[90, 100]),  # ％なので範囲調整
+fig_rel.update_layout(
+    xaxis=dict(type="category", title="年月"),
+    yaxis=dict(title="Operational Reliability (%)", side="left", range=[0, 105]),
     yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
-    barmode="overlay"
+    barmode="overlay",
+    hovermode="x unified"
 )
 
-st.plotly_chart(fig_reliability, use_container_width=True)
+st.plotly_chart(fig_rel, use_container_width=True)
 
 
 
@@ -749,6 +714,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
