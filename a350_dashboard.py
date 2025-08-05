@@ -409,49 +409,61 @@ df_irreg_period = df_irregular[
     (df_irregular["Date"].dt.date <= end_date)
 ]
 
-# ATAごとの件数集計
-ata_counts = (
-    df_irreg_period.groupby("ATA_SubChapter")
-    .size()
-    .reset_index(name="Count")
-    .sort_values("Count", ascending=True)
+# ================================
+# 📊 イレギュラー ATA別件数 横棒グラフ
+# ================================
+st.subheader("Chart")
+
+# 期間選択（スライダー）
+min_date = df_irregular["Date"].min().date()
+max_date = df_irregular["Date"].max().date()
+start_date, end_date = st.slider(
+    "期間を選択してください",
+    min_value=min_date,
+    max_value=max_date,
+    value=(min_date, max_date),
+    format="YYYY-MM-DD"
 )
 
-# 存在するATA_SubChapterのみを縦軸に設定
-categories = ata_counts["ATA_SubChapter"].tolist()
+# 集計関数をキャッシュ
+@st.cache_data
+def aggregate_irregular_by_ata(df, start, end):
+    df_period = df[(df["Date"].dt.date >= start) & (df["Date"].dt.date <= end)]
+    ata_counts = (
+        df_period.groupby("ATA_SubChapter")
+        .size()
+        .reset_index(name="Count")
+        .sort_values("Count", ascending=True)
+    )
+    # 件数上位50件のみ
+    ata_counts = ata_counts.tail(50)
+    categories = ata_counts["ATA_SubChapter"].astype(str).tolist()
+    return ata_counts, categories
 
-# データ数に応じて高さを調整（1本あたり40px確保、最小400px）
-bar_height = max(400, len(categories) * 40)
+# 集計実行
+ata_counts, categories = aggregate_irregular_by_ata(df_irregular, start_date, end_date)
 
-# 横棒グラフ作成
-fig_ata = px.bar(
-    ata_counts,
-    x="Count",
-    y="ATA_SubChapter",
+# 棒グラフ作成
+fig_bar = go.Figure(go.Bar(
+    x=ata_counts["Count"],
+    y=ata_counts["ATA_SubChapter"].astype(str),
     orientation="h",
-    text="Count"
-)
+    marker=dict(color="skyblue")
+))
 
-# 棒の設定
-fig_ata.update_traces(
-    textposition="outside",
-    marker_line_width=0.5,
-    marker_line_color="black"
-)
-
-# 軸・レイアウト調整
-fig_ata.update_layout(
+fig_bar.update_layout(
+    title="イレギュラー件数（ATA別・上位50件）",
     xaxis_title="件数",
     yaxis_title="ATA_SubChapter",
     yaxis=dict(
         categoryorder="array",
-        categoryarray=categories,  # 存在する値だけ並べる
-        dtick=1  # 等間隔で表示
+        categoryarray=categories
     ),
-    height=bar_height
+    height=min(max(400, len(categories) * 40), 1200),  # 高さ制限
+    margin=dict(l=100, r=50, t=50, b=50)
 )
 
-st.plotly_chart(fig_ata, use_container_width=True)
+st.plotly_chart(fig_bar, use_container_width=True)
 
 
 
@@ -904,6 +916,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
