@@ -69,7 +69,7 @@ def filter_cabin_related(df):
 # -------------------------------
 # 表示
 # -------------------------------
-st.title("🛫 A350 不具合モニタリングダッシュボード")
+st.title("A350 Monitoring Dashboard")
 
 latest_date = df['Reported_Date'].max()
 one_year_ago = latest_date - DateOffset(years=1)
@@ -119,7 +119,7 @@ monthly_combined = monthly_combined.sort_values("YearMonth")
 # -------------------------------
 # 📊 月別推移グラフ（不具合 + イレギュラー）
 # -------------------------------
-st.subheader("📊 A350全体・機種別 月別不具合件数 & イレギュラー件数推移")
+st.subheader("📊 A350 Fleet Brief")
 
 filter_exclude_graph = st.checkbox("Seat/IFE/WiFiを除く（グラフ適用）")
 
@@ -658,6 +658,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
