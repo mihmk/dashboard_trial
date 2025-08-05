@@ -387,6 +387,57 @@ df_irregular_sorted = df_irregular_display[irreg_display_cols] \
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 
 
+st.subheader("Chart")
+
+# データ範囲を取得
+min_date = df_irregular["Date"].min().date()
+max_date = df_irregular["Date"].max().date()
+
+# 期間選択スライダー
+date_range = st.slider(
+    "期間を選択してください",
+    min_value=min_date,
+    max_value=max_date,
+    value=(min_date, max_date),
+    format="YYYY-MM-DD"
+)
+
+# 選択期間のデータを抽出
+start_date, end_date = date_range
+df_irreg_period = df_irregular[
+    (df_irregular["Date"].dt.date >= start_date) &
+    (df_irregular["Date"].dt.date <= end_date)
+]
+
+# ATAごとの件数集計
+ata_counts = (
+    df_irreg_period.groupby("ATA_SubChapter")
+    .size()
+    .reset_index(name="Count")
+    .sort_values("Count", ascending=True)  # 横棒なので昇順で下から上へ
+)
+
+# 横棒グラフ作成
+import plotly.express as px
+fig_ata = px.bar(
+    ata_counts,
+    x="Count",
+    y="ATA_SubChapter",
+    orientation="h",
+    text="Count"
+)
+
+fig_ata.update_traces(textposition="outside")
+fig_ata.update_layout(
+    xaxis_title="件数",
+    yaxis_title="ATA_SubChapter",
+    height=600
+)
+
+st.plotly_chart(fig_ata, use_container_width=True)
+
+
+
 # -------------------------------
 # 📊 不具合件数上位10のMOD_Description月次推移（機種別）
 # -------------------------------
@@ -835,6 +886,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
