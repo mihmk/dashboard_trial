@@ -272,56 +272,69 @@ def load_fc_data():
 # -------------------------------
 # 📊 Reliability
 # -------------------------------
-# --- Reliability グラフ ---
 # -------------------------------
-# 📊 Reliability
+# 📊 Reliability（機種別）
 # -------------------------------
-st.subheader("📈 Reliability")
+st.subheader("📈 Reliability (機種別)")
 
 # FC データ読み込み
 df_fc = load_fc_data()
 
-# 月ごとに FC を合計
-df_fc_monthly = df_fc.groupby("YearMonth", as_index=False)["FC"].sum()
-df_fc_monthly.rename(columns={"FC": "Total_FC"}, inplace=True)
-
-# Irregular 件数データとマージ（monthly_irregular を使用）
-rel_df = pd.merge(
-    df_fc_monthly,
-    monthly_irregular[["YearMonth", "Irreg_Total"]],
-    on="YearMonth",
-    how="left"
+# Irregular データ（月別・機種別）
+irreg_by_type = (
+    df_irregular.groupby(["YearMonth", "Aircraft_Type"])
+    .size()
+    .reset_index(name="Irreg_Count")
 )
 
-# Operational Reliability (%) を計算
-rel_df["Operational_Reliability"] = ((rel_df["Total_FC"] - rel_df["Irreg_Total"]) / rel_df["Total_FC"]) * 100
+# FC データ（月別・機種別）
+fc_by_type = (
+    df_fc.groupby(["YearMonth", "Aircraft_Type"], as_index=False)["FC"].sum()
+    .rename(columns={"FC": "Total_FC"})
+)
+
+# マージ
+rel_by_type = pd.merge(fc_by_type, irreg_by_type, on=["YearMonth", "Aircraft_Type"], how="left")
+
+# Operational Reliability (%) 計算
+rel_by_type["Operational_Reliability"] = (
+    (rel_by_type["Total_FC"] - rel_by_type["Irreg_Count"]) / rel_by_type["Total_FC"]
+) * 100
 
 # 欠損補完
-rel_df = rel_df.fillna({"Irreg_Total": 0, "Operational_Reliability": 100})
+rel_by_type = rel_by_type.fillna({"Irreg_Count": 0, "Operational_Reliability": 100})
 
-# グラフ作成
-fig_rel = go.Figure()
+# グラフ
+fig_rel_type = go.Figure()
 
-fig_rel.add_trace(go.Scatter(
-    x=rel_df["YearMonth"],
-    y=rel_df["Operational_Reliability"],
-    mode="lines+markers+text",
-    text=rel_df["Operational_Reliability"].round(2).astype(str) + "%",
-    textposition="top center",
-    name="Operational Reliability (%)",
-    yaxis="y1"
-))
+for ac_type in ["A350-900", "A350-1000"]:
+    df_plot = rel_by_type[rel_by_type["Aircraft_Type"] == ac_type]
+    fig_rel_type.add_trace(go.Scatter(
+        x=df_plot["YearMonth"],
+        y=df_plot["Operational_Reliability"],
+        mode="lines+markers+text",
+        text=df_plot["Operational_Reliability"].round(2).astype(str) + "%",
+        textposition="top center",
+        name=f"{ac_type} Operational Reliability (%)",
+        yaxis="y1"
+    ))
 
-fig_rel.add_trace(go.Bar(
-    x=rel_df["YearMonth"],
-    y=rel_df["Irreg_Total"],
-    name="イレギュラー件数",
+# イレギュラー件数は棒グラフ（全機種合計）
+irreg_total = (
+    df_irregular.groupby("YearMonth")
+    .size()
+    .reset_index(name="Irreg_Total")
+)
+fig_rel_type.add_trace(go.Bar(
+    x=irreg_total["YearMonth"],
+    y=irreg_total["Irreg_Total"],
+    name="イレギュラー件数（全機種）",
     yaxis="y2",
     opacity=0.5
 ))
 
-fig_rel.update_layout(
-    title="Operational Reliability (%) & イレギュラー件数（月別）",
+fig_rel_type.update_layout(
+    title="Operational Reliability (%)（機種別） & イレギュラー件数（月別）",
     xaxis=dict(type="category", title="年月"),
     yaxis=dict(title="Operational Reliability (%)", side="left", range=[95, 100]),
     yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
@@ -329,7 +342,7 @@ fig_rel.update_layout(
     hovermode="x unified"
 )
 
-st.plotly_chart(fig_rel, use_container_width=True)
+st.plotly_chart(fig_rel_type, use_container_width=True)
 
 
 # -------------------------------
@@ -780,6 +793,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
