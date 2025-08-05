@@ -127,11 +127,19 @@ def filter_cabin_related_both(df_def, df_ir):
     exclude_patterns = ["2520", "2521", "2528"] + \
                        [f"442{i}" for i in range(10)] + \
                        [f"443{i}" for i in range(10)]
+    
+    # 不具合データフィルタ
     mask_def = ~df_def['ATA_SubChapter'].isin(exclude_patterns) & \
-               ~( (df_def['ATA_Chapter'] == '00') & df_def['MOD_Description'].str.lower().str.contains('seat', na=False) )
+               ~( (df_def['ATA_Chapter'] == '00') &
+                  df_def['MOD_Description'].astype(str).str.lower().str.contains('seat', na=False) )
+    
+    # イレギュラーデータフィルタ
     mask_ir = ~df_ir['ATA_SubChapter'].isin(exclude_patterns) & \
-              ~( (df_ir['ATA_SubChapter'].str[:2] == '00') & df_ir['Description'].str.lower().str.contains('seat', na=False) )
+              ~( (df_ir['ATA_SubChapter'].astype(str).str[:2] == '00') &
+                 df_ir['Description'].astype(str).str.lower().str.contains('seat', na=False) )
+    
     return df_def[mask_def], df_ir[mask_ir]
+
 
 if filter_exclude_graph:
     df_recent_1y_filtered, df_irregular_filtered = filter_cabin_related_both(df_recent_1y, df_irregular)
@@ -650,6 +658,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
