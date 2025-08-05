@@ -5,19 +5,14 @@ import plotly.graph_objects as go
 from datetime import datetime
 from pandas.tseries.offsets import DateOffset
 import time
-import sys
-
-# win32com.client はローカルのみ
-try:
-    import win32com.client
-    SAP_AVAILABLE = True
-except ImportError:
-    SAP_AVAILABLE = False
 
 st.set_page_config(page_title="A350 Dashboard with COA POST Count", layout="wide")
 
+# -------------------------------
+# データ読み込み関数
+# -------------------------------
 @st.cache_data
-def load_data():
+def load_defect_data():
     df = pd.read_excel("Defects_by_Date.xlsx")
     df = df.rename(columns={
         'Tail': 'Tail',
@@ -31,8 +26,7 @@ def load_data():
     df.dropna(subset=['Reported_Date'], inplace=True)
     df['Reported_Date_Str'] = df['Reported_Date'].dt.strftime('%Y-%m-%d')
     df['Reported_Date_Only'] = df['Reported_Date'].dt.date
-    df['YearMonth'] = pd.to_datetime(df['Reported_Date'], errors='coerce')
-    df['YearMonth'] = df['YearMonth'].dt.to_period('M').astype(str)
+    df['YearMonth'] = pd.to_datetime(df['Reported_Date'], errors='coerce').dt.to_period('M').astype(str)
     df['ATA_Chapter'] = df['ATA'].astype(str).str.zfill(4).str[:2]
     df['ATA_SubChapter'] = df['ATA'].astype(str).str.zfill(4).str[:4]
     df['Aircraft_Type'] = df['Tail'].apply(lambda x:
@@ -40,6 +34,29 @@ def load_data():
         'A350-1000' if x in [f"JA{str(i).zfill(2)}WJ" for i in range(1, 11)] else 'その他'))
     return df
 
+@st.cache_data
+def load_irregular_data():
+    df_ir = pd.read_excel("AIBTYO DLI.xlsx", sheet_name="EVENT", header=2, usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,Y")
+    df_ir.columns = [
+        "FLT_Number", "Date", "Tail", "Branch", "Delay_Flag", "Delay_Time",
+        "Cancel_Flag", "ShipChange_Flag", "RTO_Flag", "ATB_Flag",
+        "Diversion_Flag", "EngShutDown_Flag", "Description", "Work_Performed",
+        "ATA_SubChapter", "Total_Maintenance_DownTime"
+    ]
+    df_ir["Date"] = pd.to_datetime(df_ir["Date"], format="%d-%b-%Y", errors="coerce")
+    df_ir.dropna(subset=["Date"], inplace=True)
+    df_ir["YearMonth"] = df_ir["Date"].dt.to_period("M").astype(str)
+    df_ir["Aircraft_Type"] = df_ir["Tail"].apply(lambda x:
+        "A350-900" if x in [f"JA{str(i).zfill(2)}XJ" for i in range(1, 17)] else (
+        "A350-1000" if x in [f"JA{str(i).zfill(2)}WJ" for i in range(1, 11)] else "その他"))
+    return df_ir
+
+df = load_defect_data()
+df_irregular = load_irregular_data()
+
+# -------------------------------
+# 関数
+# -------------------------------
 def is_seat_related(row):
     return row['ATA_Chapter'] == '00' and 'seat' in str(row['MOD_Description']).lower()
 
@@ -49,14 +66,16 @@ def filter_cabin_related(df):
     mask2 = ~( (df['ATA_Chapter'] == '00') & df['MOD_Description'].str.lower().str.contains('seat') )
     return df[mask1 & mask2]
 
-df = load_data()
+# -------------------------------
+# 表示
+# -------------------------------
 st.title("🛫 A350 不具合モニタリングダッシュボード")
 
 latest_date = df['Reported_Date'].max()
 one_year_ago = latest_date - DateOffset(years=1)
 df_recent_1y = df[df['Reported_Date'] >= one_year_ago]
 
-# 月別件数（全体＋機種別）
+# 不具合件数（機種別・月別）
 monthly_by_type = (
     df_recent_1y.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
@@ -67,50 +86,57 @@ monthly_by_type = (
 )
 monthly_by_type['Total_Count'] = monthly_by_type[['A350-900', 'A350-1000']].sum(axis=1)
 
-st.subheader("📊 A350全体・機種別 月別不具合件数推移")
-exclude_seat = st.checkbox("Seat/IFE/Wi-Fiを除く")
-
-exclude_patterns = ["2520", "2521", "2528"] + [f"442{i}" for i in range(10)] + [f"443{i}" for i in range(10)]
-
-if exclude_seat:
-    df_filtered = df_recent_1y[
-        (~df_recent_1y['ATA_SubChapter'].isin(exclude_patterns)) &
-        (~df_recent_1y.apply(is_seat_related, axis=1))
-    ]
-else:
-    df_filtered = df_recent_1y.copy()
-
-monthly_excl = (
-    df_filtered.groupby(['YearMonth', 'Aircraft_Type'])
+# イレギュラー件数（機種別・月別）
+monthly_irregular = (
+    df_irregular.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
-    .reset_index(name='Count')
-    .pivot(index='YearMonth', columns='Aircraft_Type', values='Count')
+    .reset_index(name="Irregular_Count")
+    .pivot(index="YearMonth", columns="Aircraft_Type", values="Irregular_Count")
     .fillna(0)
     .reset_index()
 )
-monthly_excl['Total_Count'] = monthly_excl[['A350-900', 'A350-1000']].sum(axis=1)
+monthly_irregular["Irregular_Total"] = monthly_irregular[["A350-900", "A350-1000"]].sum(axis=1)
 
-fig_total = px.line(
-    monthly_by_type,
-    x='YearMonth',
-    y=['A350-900', 'A350-1000', 'Total_Count'],
-    markers=True,
-    title="A350全体、A350-900、A350-1000の月別不具合件数推移",
-    labels={'value': '件数', 'YearMonth': '年月', 'variable': '機種'}
+# マージ
+monthly_combined = pd.merge(monthly_by_type, monthly_irregular, on="YearMonth", how="outer").fillna(0)
+monthly_combined = monthly_combined.sort_values("YearMonth")
+
+# -------------------------------
+# 📊 月別推移グラフ（不具合 + イレギュラー）
+# -------------------------------
+st.subheader("📊 A350全体・機種別 月別不具合件数 & イレギュラー件数推移")
+
+fig_total = go.Figure()
+
+# 折れ線（不具合）- 左軸
+for col in ["A350-900", "A350-1000", "Total_Count"]:
+    fig_total.add_trace(go.Scatter(
+        x=monthly_combined["YearMonth"],
+        y=monthly_combined[col],
+        mode="lines+markers",
+        name=f"不具合 {col}",
+        yaxis="y1"
+    ))
+
+# 棒（イレギュラー）- 右軸
+fig_total.add_trace(go.Bar(
+    x=monthly_combined["YearMonth"],
+    y=monthly_combined["Irregular_Total"],
+    name="イレギュラー件数",
+    yaxis="y2",
+    opacity=0.5
+))
+
+fig_total.update_layout(
+    title="A350全体・機種別 月別不具合件数 & イレギュラー件数",
+    xaxis=dict(type="category", title="年月"),
+    yaxis=dict(title="不具合件数", side="left"),
+    yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
+    barmode="overlay"
 )
-fig_total.update_layout(xaxis=dict(type='category'))
-
-if exclude_seat:
-    for col in ['A350-900', 'A350-1000', 'Total_Count']:
-        fig_total.add_trace(go.Scatter(
-            x=monthly_excl['YearMonth'],
-            y=monthly_excl[col],
-            mode='lines+markers',
-            name=f"{col}（除くSeat/IFE）",
-            line=dict(dash='dot')
-        ))
 
 st.plotly_chart(fig_total, use_container_width=True)
+
 
 # -------------------------------
 # 📊 不具合件数上位10のMOD_Description月次推移（機種別）
@@ -560,5 +586,6 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
