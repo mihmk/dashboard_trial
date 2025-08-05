@@ -414,11 +414,16 @@ ata_counts = (
     df_irreg_period.groupby("ATA_SubChapter")
     .size()
     .reset_index(name="Count")
-    .sort_values("Count", ascending=True)  # 横棒なので昇順で下から上へ
+    .sort_values("Count", ascending=True)
 )
 
+# 存在するATA_SubChapterのみを縦軸に設定
+categories = ata_counts["ATA_SubChapter"].tolist()
+
+# データ数に応じて高さを調整（1本あたり40px確保、最小400px）
+bar_height = max(400, len(categories) * 40)
+
 # 横棒グラフ作成
-import plotly.express as px
 fig_ata = px.bar(
     ata_counts,
     x="Count",
@@ -427,14 +432,27 @@ fig_ata = px.bar(
     text="Count"
 )
 
-fig_ata.update_traces(textposition="outside")
+# 棒の設定
+fig_ata.update_traces(
+    textposition="outside",
+    marker_line_width=0.5,
+    marker_line_color="black"
+)
+
+# 軸・レイアウト調整
 fig_ata.update_layout(
     xaxis_title="件数",
     yaxis_title="ATA_SubChapter",
-    height=600
+    yaxis=dict(
+        categoryorder="array",
+        categoryarray=categories,  # 存在する値だけ並べる
+        dtick=1  # 等間隔で表示
+    ),
+    height=bar_height
 )
 
 st.plotly_chart(fig_ata, use_container_width=True)
+
 
 
 
@@ -886,6 +904,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
