@@ -208,6 +208,75 @@ fig_total.update_layout(
 )
 st.plotly_chart(fig_total, use_container_width=True)
 
+# --- FCデータ読み込み関数 ---
+@st.cache_data
+def load_fc_data():
+    import glob, os
+    import re
+
+    # ファイルパス
+    file_path = "FHFC(Airbus).xlsx"
+
+    # シート一覧取得
+    xls = pd.ExcelFile(file_path)
+    sheet_names = xls.sheet_names
+
+    all_data = []
+
+    for sheet in sheet_names:
+        try:
+            # 年月を正規化（例: 2024DEC → 2024-12）
+            match = re.match(r"(\d{4})([A-Z]{3})", sheet)
+            if not match:
+                continue
+            year, mon_str = match.groups()
+            month_map = {
+                "JAN": "01", "FEB": "02", "MAR": "03", "APR": "04",
+                "MAY": "05", "JUN": "06", "JUL": "07", "AUG": "08",
+                "SEP": "09", "OCT": "10", "NOV": "11", "DEC": "12"
+            }
+            if mon_str not in month_map:
+                continue
+            yearmonth = f"{year}-{month_map[mon_str]}"
+
+            # 該当シートをDataFrameとして読み込み
+            df_sheet = pd.read_excel(file_path, sheet_name=sheet, header=None)
+
+            # A350-900（5行目〜34行目）とA350-1000（41行目〜58行目）を抽出
+            # → 行番号は0始まりなので調整
+            df_900 = df_sheet.iloc[4:34, [1, 3]].copy()
+            df_1000 = df_sheet.iloc[40:58, [1, 3]].copy()
+
+            # 列名を設定
+            df_900.columns = ["Tail", "FC"]
+            df_1000.columns = ["Tail", "FC"]
+
+            # 機種区分を付与
+            df_900["Aircraft_Type"] = "A350-900"
+            df_1000["Aircraft_Type"] = "A350-1000"
+
+            # 月を付与
+            df_900["YearMonth"] = yearmonth
+            df_1000["YearMonth"] = yearmonth
+
+            # 結合
+            all_data.append(df_900)
+            all_data.append(df_1000)
+
+        except Exception as e:
+            st.warning(f"{sheet} 読み込み失敗: {e}")
+
+    # 全データを結合
+    if all_data:
+        df_fc = pd.concat(all_data, ignore_index=True)
+        # FCは数値化
+        df_fc["FC"] = pd.to_numeric(df_fc["FC"], errors="coerce")
+        df_fc = df_fc.dropna(subset=["FC"])
+    else:
+        df_fc = pd.DataFrame(columns=["Tail", "FC", "Aircraft_Type", "YearMonth"])
+
+    return df_fc
+
 
 # -------------------------------
 # 📊 Reliability
@@ -714,6 +783,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
