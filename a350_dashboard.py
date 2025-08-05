@@ -55,29 +55,48 @@ df = load_defect_data()
 df_irregular = load_irregular_data()
 
 # -------------------------------
-# 関数
+# 除外条件関数（不具合用）
 # -------------------------------
-def is_seat_related(row):
-    return row['ATA_Chapter'] == '00' and 'seat' in str(row['MOD_Description']).lower()
-
-def filter_cabin_related(df):
-    exclude_patterns = ["2520", "2521", "2528"] + [f"442{i}" for i in range(10)] + [f"443{i}" for i in range(10)]
+def filter_cabin_related_defects(df):
+    exclude_patterns = ["2520", "2521", "2528"] + \
+                       [f"442{i}" for i in range(10)] + \
+                       [f"443{i}" for i in range(10)]
     mask1 = ~df['ATA_SubChapter'].isin(exclude_patterns)
-    mask2 = ~( (df['ATA_Chapter'] == '00') & df['MOD_Description'].str.lower().str.contains('seat') )
+    mask2 = ~( (df['ATA_Chapter'] == '00') &
+               df['MOD_Description'].str.lower().str.contains('seat', na=False) )
     return df[mask1 & mask2]
 
 # -------------------------------
-# 表示
+# 除外条件関数（イレギュラー用）
 # -------------------------------
-st.title("🛫 A350 不具合モニタリングダッシュボード")
+def filter_cabin_related_irregulars(df):
+    exclude_patterns = ["2520", "2521", "2528"] + \
+                       [f"442{i}" for i in range(10)] + \
+                       [f"443{i}" for i in range(10)]
+    mask1 = ~df['ATA_SubChapter'].isin(exclude_patterns)
+    mask2 = ~( (df['ATA_SubChapter'].str[:2] == '00') &
+               (df['Description'].str.lower().str.contains('seat', na=False) |
+                df['Work_Performed'].str.lower().str.contains('seat', na=False)) )
+    return df[mask1 & mask2]
 
-latest_date = df['Reported_Date'].max()
-one_year_ago = latest_date - DateOffset(years=1)
-df_recent_1y = df[df['Reported_Date'] >= one_year_ago]
+# -------------------------------
+# 📊 月別推移グラフ（不具合 + イレギュラー）
+# -------------------------------
+st.subheader("📊 A350全体・機種別 月別不具合件数 & イレギュラー件数推移")
 
-# 不具合件数（機種別・月別）
+filter_exclude_main = st.checkbox("📋 Seat/IFE/Wi-Fiを除く（グラフ適用）")
+
+# データ選択
+if filter_exclude_main:
+    df_plot = filter_cabin_related_defects(df)
+    df_ir_plot = filter_cabin_related_irregulars(df_irregular)
+else:
+    df_plot = df
+    df_ir_plot = df_irregular
+
+# 不具合件数集計
 monthly_by_type = (
-    df_recent_1y.groupby(['YearMonth', 'Aircraft_Type'])
+    df_plot.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
     .reset_index(name='Defect_Count')
     .pivot(index='YearMonth', columns='Aircraft_Type', values='Defect_Count')
@@ -85,17 +104,14 @@ monthly_by_type = (
     .reset_index()
 )
 monthly_by_type['Defect_Total'] = monthly_by_type[['A350-900', 'A350-1000']].sum(axis=1)
-
-# 列名に "Defect_" プレフィックスを付ける
 monthly_by_type = monthly_by_type.rename(columns={
     'A350-900': 'Defect_A350-900',
-    'A350-1000': 'Defect_A350-1000',
-    'Defect_Total': 'Defect_Total'
+    'A350-1000': 'Defect_A350-1000'
 })
 
-# イレギュラー件数（機種別・月別）
+# イレギュラー件数集計
 monthly_irregular = (
-    df_irregular.groupby(['YearMonth', 'Aircraft_Type'])
+    df_ir_plot.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
     .reset_index(name="Irreg_Count")
     .pivot(index="YearMonth", columns="Aircraft_Type", values="Irreg_Count")
@@ -103,24 +119,16 @@ monthly_irregular = (
     .reset_index()
 )
 monthly_irregular['Irreg_Total'] = monthly_irregular[['A350-900', 'A350-1000']].sum(axis=1)
-
-# 列名に "Irreg_" プレフィックスを付ける
 monthly_irregular = monthly_irregular.rename(columns={
     'A350-900': 'Irreg_A350-900',
-    'A350-1000': 'Irreg_A350-1000',
-    'Irreg_Total': 'Irreg_Total'
+    'A350-1000': 'Irreg_A350-1000'
 })
 
-# マージ（YearMonth をキーに結合）
+# マージ
 monthly_combined = pd.merge(monthly_by_type, monthly_irregular, on="YearMonth", how="outer").fillna(0)
 monthly_combined = monthly_combined.sort_values("YearMonth")
 
-
-# -------------------------------
-# 📊 月別推移グラフ（不具合 + イレギュラー）
-# -------------------------------
-st.subheader("📊 A350全体・機種別 月別不具合件数 & イレギュラー件数推移")
-
+# グラフ描画
 fig_total = go.Figure()
 
 # 折れ線（不具合）- 左軸
@@ -142,7 +150,6 @@ fig_total.add_trace(go.Bar(
     opacity=0.5
 ))
 
-
 fig_total.update_layout(
     title="A350全体・機種別 月別不具合件数 & イレギュラー件数",
     xaxis=dict(type="category", title="年月"),
@@ -152,6 +159,7 @@ fig_total.update_layout(
 )
 
 st.plotly_chart(fig_total, use_container_width=True)
+
 
 
 # -------------------------------
@@ -602,6 +610,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
