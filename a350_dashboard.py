@@ -5,11 +5,14 @@ import plotly.graph_objects as go
 from datetime import datetime
 from pandas.tseries.offsets import DateOffset
 import time
-import platform
+import sys
 
-# Windows 環境のみ win32com を読み込み
-if platform.system() == "Windows":
+# win32com.client はローカルのみ
+try:
     import win32com.client
+    SAP_AVAILABLE = True
+except ImportError:
+    SAP_AVAILABLE = False
 
 st.set_page_config(page_title="A350 Dashboard with COA POST Count", layout="wide")
 
@@ -47,16 +50,13 @@ def filter_cabin_related(df):
     return df[mask1 & mask2]
 
 df = load_data()
-
-
-st.title("\U0001F6EB A350 不具合モニタリングダッシュボード")
-
+st.title("🛫 A350 不具合モニタリングダッシュボード")
 
 latest_date = df['Reported_Date'].max()
 one_year_ago = latest_date - DateOffset(years=1)
 df_recent_1y = df[df['Reported_Date'] >= one_year_ago]
 
-
+# 月別件数（全体＋機種別）
 monthly_by_type = (
     df_recent_1y.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
@@ -67,13 +67,10 @@ monthly_by_type = (
 )
 monthly_by_type['Total_Count'] = monthly_by_type[['A350-900', 'A350-1000']].sum(axis=1)
 
-
-st.subheader("\U0001F4CA A350全体・機種別 月別不具合件数推移")
+st.subheader("📊 A350全体・機種別 月別不具合件数推移")
 exclude_seat = st.checkbox("Seat/IFE/Wi-Fiを除く")
 
-
 exclude_patterns = ["2520", "2521", "2528"] + [f"442{i}" for i in range(10)] + [f"443{i}" for i in range(10)]
-
 
 if exclude_seat:
     df_filtered = df_recent_1y[
@@ -82,7 +79,6 @@ if exclude_seat:
     ]
 else:
     df_filtered = df_recent_1y.copy()
-
 
 monthly_excl = (
     df_filtered.groupby(['YearMonth', 'Aircraft_Type'])
@@ -94,7 +90,6 @@ monthly_excl = (
 )
 monthly_excl['Total_Count'] = monthly_excl[['A350-900', 'A350-1000']].sum(axis=1)
 
-
 fig_total = px.line(
     monthly_by_type,
     x='YearMonth',
@@ -104,7 +99,6 @@ fig_total = px.line(
     labels={'value': '件数', 'YearMonth': '年月', 'variable': '機種'}
 )
 fig_total.update_layout(xaxis=dict(type='category'))
-
 
 if exclude_seat:
     for col in ['A350-900', 'A350-1000', 'Total_Count']:
@@ -116,32 +110,24 @@ if exclude_seat:
             line=dict(dash='dot')
         ))
 
-
 st.plotly_chart(fig_total, use_container_width=True)
 
 # -------------------------------
 # 📊 不具合件数上位10のMOD_Description月次推移（機種別）
 # -------------------------------
 st.subheader("📊 上位10件の不具合内容（MOD_Description）の月次推移")
-
-# 機種ごとに表示（A350-900 / A350-1000）
 col5, col6 = st.columns(2)
 
 for aircraft, col in zip(['A350-900', 'A350-1000'], [col5, col6]):
     with col:
         st.markdown(f"### ✈ {aircraft}")
-        # 機種・期間で絞り込み
         df_aircraft = df_filtered[df_filtered['Aircraft_Type'] == aircraft]
-        
-        # 上位10 MOD_Descriptionを抽出
         top10_mods = (
             df_aircraft['MOD_Description']
             .value_counts()
             .nlargest(10)
             .index
         )
-
-        # 月次件数を集計
         trend_data = (
             df_aircraft[df_aircraft['MOD_Description'].isin(top10_mods)]
             .groupby(['YearMonth', 'MOD_Description'])
@@ -149,8 +135,6 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col5, col6]):
             .reset_index(name='Count')
             .sort_values(by='YearMonth')
         )
-
-        # グラフ描画
         fig_top10 = px.line(
             trend_data,
             x='YearMonth',
@@ -168,15 +152,15 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col5, col6]):
         )
         st.plotly_chart(fig_top10, use_container_width=True)
 
-
+# -------------------------------
+# ① データ要約
+# -------------------------------
 st.header("① データ要約")
 latest_month = df['YearMonth'].max()
 prev_month = (pd.Period(latest_month, freq='M') - 1).strftime('%Y-%m')
 
-
-st.subheader("\U0001F4CB 直近1か月の不具合内容（件数上位）・機種別")
-filter_exclude = st.checkbox("\U0001F4CB Seat/IFE/Wi-Fiを除く")
-
+st.subheader("📋 直近1か月の不具合内容（件数上位）・機種別")
+filter_exclude = st.checkbox("📋 Seat/IFE/Wi-Fiを除く")
 
 if filter_exclude:
     target_df = df[
@@ -185,7 +169,6 @@ if filter_exclude:
     ]
 else:
     target_df = df
-
 
 col_a, col_b = st.columns(2)
 for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
@@ -200,25 +183,22 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
         )
         st.dataframe(top_mod, use_container_width=True, hide_index=True, height=350)
 
-
 st.subheader("📈 ATAサブチャプターごとの不具合件数増加率・機種別")
 st.markdown("#### 📉 長期トレンド（6か月移動平均）")
-
 col1, col2 = st.columns(2)
 for aircraft, col in zip(['A350-900', 'A350-1000'], [col1, col2]):
     with col:
         st.markdown(f"### ✈ {aircraft}")
         df_type = df[df['Aircraft_Type'] == aircraft]
-
         if filter_exclude:
             df_type = filter_cabin_related(df_type)
-
         ata_monthly = df_type.groupby(['YearMonth', 'ATA_SubChapter']).size().unstack(fill_value=0).sort_index()
         ata_ma12 = ata_monthly.rolling(window=6, min_periods=2).mean()
         if latest_month in ata_ma12.index and prev_month in ata_ma12.index:
             latest_ma = ata_ma12.loc[latest_month]
             prev_ma = ata_ma12.loc[prev_month]
-            increase_rate = ((latest_ma - prev_ma) / prev_ma.replace(0, pd.NA)).dropna() * 100
+            increase_rate = ((latest_ma - prev_ma) / prev_ma.replace(0, pd.NA)) * 100
+            increase_rate = pd.to_numeric(increase_rate, errors='coerce').dropna()
             alert_df = pd.DataFrame({
                 'ATA_SubChapter': increase_rate.index,
                 '増加率(%)': increase_rate.round(1).values,
@@ -579,3 +559,4 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
