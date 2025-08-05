@@ -36,20 +36,33 @@ def load_defect_data():
 
 @st.cache_data
 def load_irregular_data():
-    df_ir = pd.read_excel("AIBTYO DLI.xlsx", sheet_name="EVENTS", header=2, usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,Y")
+    # W列（Delay Code）を含めて読み込む
+    df_ir = pd.read_excel(
+        "AIBTYO DLI.xlsx",
+        sheet_name="EVENTS",
+        header=2,
+        usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,Y,W"
+    )
+
     df_ir.columns = [
-        "FLT_Number", "Date", "Tail", "Branch", "Delay_Flag", "Delay_Time",
+        "FLT_Number", "Date", "Tail", "Branch",
+        "Delay_Flag", "Delay_Time",
         "Cancel_Flag", "ShipChange_Flag", "RTO_Flag", "ATB_Flag",
         "Diversion_Flag", "EngShutDown_Flag", "Description", "Work_Performed",
-        "ATA_SubChapter", "Total_Maintenance_DownTime"
+        "ATA_SubChapter", "Total_Maintenance_DownTime",
+        "Delay_Code"  # ← W列
     ]
+
     df_ir["Date"] = pd.to_datetime(df_ir["Date"], format="%d-%b-%Y", errors="coerce")
     df_ir.dropna(subset=["Date"], inplace=True)
     df_ir["YearMonth"] = df_ir["Date"].dt.to_period("M").astype(str)
+
     df_ir["Aircraft_Type"] = df_ir["Tail"].apply(lambda x:
         "A350-900" if x in [f"JA{str(i).zfill(2)}XJ" for i in range(1, 17)] else (
-        "A350-1000" if x in [f"JA{str(i).zfill(2)}WJ" for i in range(1, 11)] else "その他"))
+        "A350-1000" if x in [f"JA{str(i).zfill(2)}WJ" for i in range(1, 11)] else "その他")
+    )
     return df_ir
+
 
 df = load_defect_data()
 df_irregular = load_irregular_data()
@@ -347,18 +360,17 @@ st.plotly_chart(fig_rel_type, use_container_width=True)
 # --- Reliability グラフの下にイレギュラー内容の表を追加 ---
 st.subheader("✈ イレギュラー事象一覧")
 
-# 表示したい列を抽出
+# 表示列を変更（Delay_Flag → Delay_Code）
 irreg_display_cols = [
     "Date", "FLT_Number", "Tail", "Branch",
-    "Delay_Flag", "Delay_Time",
+    "Delay_Code", "Delay_Time",
     "ATA_SubChapter", "Description", "Work_Performed"
 ]
 
-# 日付順に並べ替え（最新が上）
 df_irregular_sorted = df_irregular[irreg_display_cols].sort_values("Date", ascending=False)
 
-# 表示
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
+
 
 
 # -------------------------------
@@ -809,6 +821,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
