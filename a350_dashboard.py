@@ -36,12 +36,12 @@ def load_defect_data():
 
 @st.cache_data
 def load_irregular_data():
-    # W列（Delay Code）を含めて読み込む
+    # データ存在行をすべて読み込む（空白行含む）
     df_ir = pd.read_excel(
         "AIBTYO DLI.xlsx",
         sheet_name="EVENTS",
-        header=2,
-        usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,W,Y"
+        skiprows=2,  # 3行目から読み込み（header=2と同じ効果）
+        usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,Y,W"
     )
 
     df_ir.columns = [
@@ -49,18 +49,27 @@ def load_irregular_data():
         "Delay_Flag", "Delay_Time",
         "Cancel_Flag", "ShipChange_Flag", "RTO_Flag", "ATB_Flag",
         "Diversion_Flag", "EngShutDown_Flag", "Description", "Work_Performed",
-        "ATA_SubChapter", "Delay_Code","Total_Maintenance_DownTime"
+        "ATA_SubChapter", "Total_Maintenance_DownTime",
+        "Delay_Code"  # ← W列
     ]
 
+    # Date列を日付型に変換
     df_ir["Date"] = pd.to_datetime(df_ir["Date"], format="%d-%b-%Y", errors="coerce")
-    df_ir.dropna(subset=["Date"], inplace=True)
+
+    # 空行削除（TailやDateがない行は不要）
+    df_ir.dropna(subset=["Date", "Tail"], how="any", inplace=True)
+
+    # YearMonth列作成
     df_ir["YearMonth"] = df_ir["Date"].dt.to_period("M").astype(str)
 
+    # Aircraft_Type 判定
     df_ir["Aircraft_Type"] = df_ir["Tail"].apply(lambda x:
         "A350-900" if x in [f"JA{str(i).zfill(2)}XJ" for i in range(1, 17)] else (
         "A350-1000" if x in [f"JA{str(i).zfill(2)}WJ" for i in range(1, 11)] else "その他")
     )
+
     return df_ir
+
 
 
 df = load_defect_data()
@@ -359,17 +368,23 @@ st.plotly_chart(fig_rel_type, use_container_width=True)
 # --- Reliability グラフの下にイレギュラー内容の表を追加 ---
 st.subheader("✈ イレギュラー事象一覧")
 
-# 表示列を変更（Delay_Flag → Delay_Code）
+# 表示列
 irreg_display_cols = [
     "Date", "FLT_Number", "Tail", "Branch",
     "Delay_Code", "Delay_Time",
     "ATA_SubChapter", "Description", "Work_Performed"
 ]
 
-df_irregular_sorted = df_irregular[irreg_display_cols].sort_values("Date", ascending=False)
+# 表用に日付フォーマットを変更（YYYY-MM-DDのみ）
+df_irregular_display = df_irregular.copy()
+df_irregular_display["Date"] = df_irregular_display["Date"].dt.strftime("%Y-%m-%d")
+
+# 表示（インデックス削除）
+df_irregular_sorted = df_irregular_display[irreg_display_cols] \
+    .sort_values("Date", ascending=False) \
+    .reset_index(drop=True)
 
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
-
 
 
 # -------------------------------
@@ -820,6 +835,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
