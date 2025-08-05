@@ -36,7 +36,7 @@ def load_defect_data():
 
 @st.cache_data
 def load_irregular_data():
-    df_ir = pd.read_excel("AIBTYO DLI.xlsx", sheet_name="EVENT", header=2, usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,Y")
+    df_ir = pd.read_excel("AIBTYO DLI.xlsx", sheet_name="EVENTS", header=2, usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,Y")
     df_ir.columns = [
         "FLT_Number", "Date", "Tail", "Branch", "Delay_Flag", "Delay_Time",
         "Cancel_Flag", "ShipChange_Flag", "RTO_Flag", "ATB_Flag",
@@ -586,6 +586,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
