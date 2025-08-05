@@ -275,16 +275,22 @@ def load_fc_data():
 # --- Reliability グラフ ---
 st.subheader("📈 Reliability")
 
+# FC データ読み込み
 df_fc = load_fc_data()
 
-# Irreg_Total を monthly_combined から取得
-irreg_monthly = monthly_combined[["YearMonth", "Irreg_Total"]]
+# 月ごとに FC を合計
+df_fc_monthly = df_fc.groupby("YearMonth", as_index=False)["FC"].sum()
+df_fc_monthly.rename(columns={"FC": "Total_FC"}, inplace=True)
 
-# マージ
-rel_df = pd.merge(df_fc, irreg_monthly, on="YearMonth", how="left").fillna(0)
+# Irregular 件数データ（例: df_irreg）とマージ
+# ※ df_irreg には YearMonth 列と Irreg_Total 列が必要
+rel_df = pd.merge(df_fc_monthly, df_irreg[["YearMonth", "Irreg_Total"]], on="YearMonth", how="left")
 
-# Operational Reliability (%) 計算
+# Operational Reliability (%) を計算
 rel_df["Operational_Reliability"] = ((rel_df["Total_FC"] - rel_df["Irreg_Total"]) / rel_df["Total_FC"]) * 100
+
+# 欠損補完
+rel_df = rel_df.fillna({"Irreg_Total": 0, "Operational_Reliability": 100})
 
 # グラフ作成
 fig_rel = go.Figure()
@@ -770,6 +776,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
