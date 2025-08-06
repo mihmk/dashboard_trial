@@ -496,6 +496,32 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
         ata_orders[aircraft] = merged['ATA_Chapter'].astype(str).tolist()
 
 # ================================
+# ✈ FLT SQ / Pilot Report
+# ================================
+st.subheader("FLT SQ / Pilot Report")
+
+latest_month = df['YearMonth'].max()
+prev_month = (pd.Period(latest_month, freq='M') - 1).strftime('%Y-%m')
+
+ata_orders = {}  # ATA並び順を保存
+
+col_left, col_right = st.columns(2)
+
+for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
+    with col:
+        st.markdown(f"### ✈ {aircraft}")
+
+        df_type = df[df['Aircraft_Type'] == aircraft]
+
+        # 件数集計
+        latest_counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
+        prev_counts = df_type[df_type['YearMonth'] == prev_month].groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
+        merged = pd.merge(latest_counts, prev_counts, on='ATA_Chapter', how='left').fillna(0)
+        merged = merged.sort_values(by='Latest_Count', ascending=False)
+        ata_orders[aircraft] = merged['ATA_Chapter'].astype(str).tolist()
+
+
+# ================================
 # Top Driver（月別件数推移）
 # ================================
 st.markdown("### 🏆 Top Driver（過去1年 不具合件数上位10位）")
@@ -509,7 +535,11 @@ def is_seat_related(row):
     return (row['ATA_Chapter'] == "0" and "seat" in str(row['MOD_Description']).lower())
 
 # Top Driver専用フィルタチェックボックス
-filter_exclude_top_driver = st.checkbox("Seat/IFE/WiFi以外（Top Driverのみ適用）", value=False)
+filter_exclude_top_driver = st.checkbox(
+    "Seat/IFE/WiFi以外（Top Driverのみ適用）",
+    value=False,
+    key="filter_exclude_top_driver"
+)
 
 # 対象期間（直近12か月）
 one_year_ago = (pd.Period(latest_month, freq='M') - 11).strftime('%Y-%m')
@@ -563,8 +593,7 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
             legend_title="不具合内容",
             margin=dict(t=50)
         )
-        st.plotly_chart(fig_top, use_container_width=True)
-
+        st.plotly_chart(fig_top, use_container_width=True, key=f"fig_top_{aircraft_type}")
 
         # --- 円グラフ（ATA比率） ---
         counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Count')
@@ -575,11 +604,11 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
             hole=0.3
         ))
         fig_pie.update_layout(
-            title=f"{aircraft} ATA別比率（{latest_month}）",
+            title=f"{aircraft_type} ATA別比率（{latest_month}）",
             height=400,
             margin=dict(t=40, b=0, l=0, r=0)
         )
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, use_container_width=True, key=f"fig_pie_{aircraft_type}")
 
         # --- 棒グラフ（件数） ---
         fig_count = go.Figure(data=[
@@ -609,7 +638,7 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
             bargap=0.2,
             margin=dict(t=50)
         )
-        st.plotly_chart(fig_count, use_container_width=True)
+        st.plotly_chart(fig_count, use_container_width=True, key=f"fig_count_{aircraft_type}")
 
 # --- 増加率グラフ ---
 col_left, col_right = st.columns(2)
@@ -686,7 +715,8 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             bargap=0.2,
             margin=dict(t=30)
         )
-        st.plotly_chart(fig_rate, use_container_width=True)
+        st.plotly_chart(fig_rate, use_container_width=True, key=f"fig_rate_{aircraft}")
+
 
 
 
@@ -985,6 +1015,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
