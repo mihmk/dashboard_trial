@@ -707,7 +707,7 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
 # -------------------------------
 # ③ ATA別 月別不具合件数推移（直近1年）
 # -------------------------------
-st.header("③ ATA別 Data")
+st.header("Data by ATA chapter")
 
 latest_date = df['Reported_Date'].max()
 one_year_ago = latest_date - DateOffset(years=1)
@@ -966,6 +966,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
