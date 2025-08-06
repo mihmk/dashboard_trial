@@ -478,25 +478,26 @@ st.subheader("FLT SQ / Pilot Report")
 latest_month = df['YearMonth'].max()
 prev_month = (pd.Period(latest_month, freq='M') - 1).strftime('%Y-%m')
 
-ata_orders = {}  # 棒グラフの横軸順保持
+ata_orders = {}  # ATA並び順を保存
 
 col_left, col_right = st.columns(2)
 
-# --- A350-900 と A350-1000 ループ ---
 for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
     with col:
         st.markdown(f"### ✈ {aircraft}")
 
         df_type = df[df['Aircraft_Type'] == aircraft]
 
+        # 件数（棒グラフ）と円グラフを横並びに配置
+        bar_col, pie_col = st.columns([5, 1])  # 棒グラフ広め、円グラフ小さめ
+
+        # --- 棒グラフ（件数） ---
         latest_counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
         prev_counts = df_type[df_type['YearMonth'] == prev_month].groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
-
         merged = pd.merge(latest_counts, prev_counts, on='ATA_Chapter', how='left').fillna(0)
         merged = merged.sort_values(by='Latest_Count', ascending=False)
         ata_orders[aircraft] = merged['ATA_Chapter'].astype(str).tolist()
 
-        # 件数棒グラフ（件数のみ表示）
         fig_count = go.Figure(data=[
             go.Bar(
                 name=f"{latest_month}",
@@ -521,25 +522,23 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             xaxis_title="ATA Chapter",
             yaxis_title="件数",
             xaxis=dict(type='category'),
-            bargap=0.2
+            bargap=0.2,
+            margin=dict(t=50)
         )
-        st.plotly_chart(fig_count, use_container_width=True)
+        bar_col.plotly_chart(fig_count, use_container_width=True)
 
-# --- 円グラフ ---
-col_left, col_right = st.columns(2)
-for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
-    with col:
-        st.markdown(f"#### {aircraft} ATA比率")
-        df_type = df[df['Aircraft_Type'] == aircraft]
+        # --- 円グラフ（ATA比率） ---
         counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Count')
         fig_pie = go.Figure(go.Pie(
             labels=counts['ATA_Chapter'],
             values=counts['Count'],
-            textinfo='label'  # %は非表示、ATAだけ
+            textinfo='label',  # %は非表示、ATAだけ
+            hole=0.3
         ))
-        st.plotly_chart(fig_pie, use_container_width=True)
+        fig_pie.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
+        pie_col.plotly_chart(fig_pie, use_container_width=True)
 
-# --- 短期/長期 増加率グラフ ---
+# --- 増加率グラフ ---
 col_left, col_right = st.columns(2)
 for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
     with col:
@@ -573,7 +572,6 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             '長期増加率(%)': long_term_rate.round(1)
         })
 
-        # 横軸順を件数グラフと揃える（安全版）
         if aircraft in ata_orders and not rate_df.empty:
             categories_order = ata_orders[aircraft]
             rate_df['ATA_Chapter'] = pd.Categorical(
@@ -586,7 +584,6 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             except Exception:
                 pass
 
-        # 増加率棒グラフ
         fig_rate = go.Figure(data=[
             go.Bar(
                 name='短期増加率(%)',
@@ -606,9 +603,11 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             xaxis_title="ATA Chapter",
             yaxis_title="増加率(%)",
             xaxis=dict(type='category'),
-            bargap=0.2
+            bargap=0.2,
+            margin=dict(t=30)
         )
         st.plotly_chart(fig_rate, use_container_width=True)
+
 
 
 
@@ -1020,6 +1019,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
