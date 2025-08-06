@@ -495,6 +495,77 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
         merged = merged.sort_values(by='Latest_Count', ascending=False)
         ata_orders[aircraft] = merged['ATA_Chapter'].astype(str).tolist()
 
+        # ================================
+# Top Driver（月別件数推移）
+# ================================
+st.markdown("### 🏆 Top Driver（過去1年 不具合件数上位10位）")
+
+# 除外条件パターン
+exclude_patterns = ["2520", "2521", "2528"] + \
+                   [f"442{i}" for i in range(10)] + \
+                   [f"443{i}" for i in range(10)]
+
+def is_seat_related(row):
+    return (row['ATA_Chapter'] == "0" and "seat" in str(row['MOD_Description']).lower())
+
+# 除外フィルタのチェックボックス
+filter_exclude = st.checkbox("Seat/IFE/WiFi以外", value=False)
+
+# 対象期間（直近12か月）
+one_year_ago = (pd.Period(latest_month, freq='M') - 11).strftime('%Y-%m')
+df_recent_1y = df[df['YearMonth'] >= one_year_ago]
+
+# フィルタ適用
+if filter_exclude:
+    df_recent_1y = df_recent_1y[
+        (~df_recent_1y['ATA_SubChapter'].isin(exclude_patterns)) &
+        (~df_recent_1y.apply(is_seat_related, axis=1))
+    ]
+
+col_a, col_b = st.columns(2)
+
+for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
+    with col:
+        st.markdown(f"#### ✈ {aircraft_type}")
+
+        df_type = df_recent_1y[df_recent_1y['Aircraft_Type'] == aircraft_type]
+
+        # 上位10位のMOD_Descriptionを取得
+        top_mod_list = (
+            df_type[df_type['YearMonth'] == latest_month]
+            .groupby('MOD_Description')
+            .size()
+            .sort_values(ascending=False)
+            .head(10)
+            .index.tolist()
+        )
+
+        # 月別件数推移
+        df_top = df_type[df_type['MOD_Description'].isin(top_mod_list)]
+        monthly_counts = (
+            df_top.groupby(['YearMonth', 'MOD_Description'])
+            .size()
+            .reset_index(name='件数')
+        )
+
+        # 線グラフ作成
+        fig_top = px.line(
+            monthly_counts,
+            x='YearMonth',
+            y='件数',
+            color='MOD_Description',
+            markers=True
+        )
+        fig_top.update_layout(
+            title=f"{aircraft_type} 上位10不具合 月別推移（過去1年）",
+            xaxis_title="月",
+            yaxis_title="件数",
+            legend_title="不具合内容",
+            margin=dict(t=50)
+        )
+        st.plotly_chart(fig_top, use_container_width=True)
+
+
         # --- 円グラフ（ATA比率） ---
         counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Count')
         fig_pie = go.Figure(go.Pie(
@@ -914,6 +985,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
