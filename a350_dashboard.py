@@ -740,7 +740,7 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
         # 月別不具合件数（1年分）
         monthly_trend = ata_month.groupby('YearMonth').size().reset_index(name='Count')
 
-        # 該当機種のFCデータ（AIBTYO DLI由来のDataFrameを df_fc と仮定）
+        # 該当機種のFCデータ（df_fc: AIBTYO DLI由来）
         fc_monthly = df_fc[df_fc['Aircraft_Type'] == aircraft].groupby('YearMonth')['FC'].sum().reset_index()
 
         # 件数とFCを結合（FC比はFCデータがある月のみ計算）
@@ -778,6 +778,33 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
+        # =========================
+        # サブチャプター別月別件数（線グラフ）
+        # =========================
+        sub_trend = (
+            ata_month.groupby(['YearMonth', 'ATA_SubChapter'])
+            .size()
+            .reset_index(name='Count')
+        )
+
+        fig_sub = px.line(
+            sub_trend,
+            x='YearMonth',
+            y='Count',
+            color='ATA_SubChapter',
+            markers=True,
+            title=f"{aircraft} ATA{selected_ata} サブチャプター別月別件数"
+        )
+        fig_sub.update_layout(
+            xaxis_title="年月",
+            yaxis_title="件数",
+            hovermode="x unified",
+            margin=dict(t=50)
+        )
+
+        st.plotly_chart(fig_sub, use_container_width=True)
+
 
 
 # --- サブチャプター選択と不具合詳細表示 ---
@@ -997,6 +1024,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
