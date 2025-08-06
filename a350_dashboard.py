@@ -662,6 +662,7 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
         ])
         fig_rate.update_layout(
             barmode='group',
+            title=f"増加率 (%)（{latest_month}）",
             xaxis_title="ATA Chapter",
             yaxis_title="増加率(%)",
             xaxis=dict(type='category'),
@@ -966,6 +967,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
