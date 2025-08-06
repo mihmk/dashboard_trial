@@ -484,7 +484,7 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
     with col:
         st.markdown(f"### ✈ {aircraft}")
         
-        df_type = df[df['Aircraft_Type'] == aircraft)
+        df_type = df[df['Aircraft_Type'] == aircraft]
 
         # 件数集計
         latest_counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
@@ -982,6 +982,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
