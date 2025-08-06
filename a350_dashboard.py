@@ -470,47 +470,6 @@ st.plotly_chart(fig_bar, use_container_width=True)
 
 
 
-
-# -------------------------------
-# 📊 不具合件数上位10のMOD_Description月次推移（機種別）
-# -------------------------------
-st.subheader("📊 上位10件の不具合内容（MOD_Description）の月次推移")
-col5, col6 = st.columns(2)
-
-for aircraft, col in zip(['A350-900', 'A350-1000'], [col5, col6]):
-    with col:
-        st.markdown(f"### ✈ {aircraft}")
-        df_aircraft = df_filtered[df_filtered['Aircraft_Type'] == aircraft]
-        top10_mods = (
-            df_aircraft['MOD_Description']
-            .value_counts()
-            .nlargest(10)
-            .index
-        )
-        trend_data = (
-            df_aircraft[df_aircraft['MOD_Description'].isin(top10_mods)]
-            .groupby(['YearMonth', 'MOD_Description'])
-            .size()
-            .reset_index(name='Count')
-            .sort_values(by='YearMonth')
-        )
-        fig_top10 = px.line(
-            trend_data,
-            x='YearMonth',
-            y='Count',
-            color='MOD_Description',
-            markers=True,
-            title=f"{aircraft}：上位10不具合の月次件数推移（直近1年）",
-            labels={'Count': '件数', 'MOD_Description': '不具合内容'}
-        )
-        fig_top10.update_layout(
-            xaxis_title="年月",
-            yaxis_title="件数",
-            xaxis=dict(type='category'),
-            hovermode='x unified'
-        )
-        st.plotly_chart(fig_top10, use_container_width=True)
-
 # -------------------------------
 # ① データ要約
 # -------------------------------
@@ -919,6 +878,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
