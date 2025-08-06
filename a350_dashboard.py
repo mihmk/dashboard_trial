@@ -651,75 +651,6 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
         )
         st.dataframe(top_mod, use_container_width=True, hide_index=True, height=350)
 
-st.subheader("📈 ATAサブチャプターごとの不具合件数増加率・機種別")
-st.markdown("#### 📉 長期トレンド（6か月移動平均）")
-col1, col2 = st.columns(2)
-for aircraft, col in zip(['A350-900', 'A350-1000'], [col1, col2]):
-    with col:
-        st.markdown(f"### ✈ {aircraft}")
-        df_type = df[df['Aircraft_Type'] == aircraft]
-        if filter_exclude:
-            df_type = filter_cabin_related(df_type)
-        ata_monthly = df_type.groupby(['YearMonth', 'ATA_SubChapter']).size().unstack(fill_value=0).sort_index()
-        ata_ma12 = ata_monthly.rolling(window=6, min_periods=2).mean()
-        if latest_month in ata_ma12.index and prev_month in ata_ma12.index:
-            latest_ma = ata_ma12.loc[latest_month]
-            prev_ma = ata_ma12.loc[prev_month]
-            increase_rate = ((latest_ma - prev_ma) / prev_ma.replace(0, pd.NA)) * 100
-            increase_rate = pd.to_numeric(increase_rate, errors='coerce').dropna()
-            alert_df = pd.DataFrame({
-                'ATA_SubChapter': increase_rate.index,
-                '増加率(%)': increase_rate.round(1).values,
-                '今月件数': [ata_monthly.loc[latest_month, ata] for ata in increase_rate.index]
-            })
-            mod_map = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_SubChapter')['MOD_Description'].agg(lambda x: x.value_counts().idxmax()).to_dict()
-            alert_df['代表的な不具合内容'] = alert_df['ATA_SubChapter'].map(mod_map).fillna("")
-            alert_df = alert_df.sort_values(by='増加率(%)', ascending=False)
-            st.dataframe(alert_df, use_container_width=True, hide_index=True, height=350)
-        else:
-            st.info(f"{aircraft} の移動平均を算出するのに十分な月次データがありません。")
-
-
-st.markdown("#### 📈 短期トレンド（当月 vs 前月）")
-
-col3, col4 = st.columns(2)
-for aircraft, col in zip(['A350-900', 'A350-1000'], [col3, col4]):
-    with col:
-        st.markdown(f"### ✈ {aircraft}")
-
-        df_type = df_recent_1y[df_recent_1y['Aircraft_Type'] == aircraft]
-
-        if filter_exclude:
-            df_type = filter_cabin_related(df_type)
-
-        ata_monthly = df_type.groupby(['YearMonth', 'ATA_SubChapter']).size().unstack(fill_value=0).sort_index()
-
-        if latest_month in ata_monthly.index and prev_month in ata_monthly.index:
-            latest_counts = ata_monthly.loc[latest_month]
-            prev_counts = ata_monthly.loc[prev_month]
-
-            short_term_rate = ((latest_counts - prev_counts) / prev_counts.replace(0, pd.NA)) * 100
-            short_term_rate = pd.to_numeric(short_term_rate, errors='coerce').dropna()
-            
-            short_df = pd.DataFrame({
-                
-                'ATA_SubChapter': short_term_rate.index,
-                '増加率(%)': short_term_rate.round(1).values,
-                '今月件数': latest_counts[short_term_rate.index].values
-            })
-
-            mod_map = df_type[df_type['YearMonth'] == latest_month] \
-                .groupby('ATA_SubChapter')['MOD_Description'] \
-                .agg(lambda x: x.value_counts().idxmax()).to_dict()
-
-            short_df['代表的な不具合内容'] = short_df['ATA_SubChapter'].map(mod_map).fillna("")
-            short_df = short_df.sort_values(by='増加率(%)', ascending=False)
-
-            st.dataframe(short_df, use_container_width=True, hide_index=True, height=350)
-        else:
-            st.info(f"{aircraft} の短期比較を算出するのに十分な月次データがありません。")
-
-
 
 
 # -------------------------------
@@ -1028,6 +959,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
