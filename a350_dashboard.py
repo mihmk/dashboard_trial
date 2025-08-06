@@ -691,39 +691,39 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
 # -------------------------------
 # ① データ要約
 # -------------------------------
-st.header("① データ要約")
-latest_month = df['YearMonth'].max()
-prev_month = (pd.Period(latest_month, freq='M') - 1).strftime('%Y-%m')
+#st.header("① データ要約")
+#latest_month = df['YearMonth'].max()
+#prev_month = (pd.Period(latest_month, freq='M') - 1).strftime('%Y-%m')
 
-st.subheader("📋 直近1か月の不具合内容（件数上位）・機種別")
-filter_exclude = st.checkbox("📋 Seat/IFE/Wi-Fiを除く")
+#st.subheader("📋 直近1か月の不具合内容（件数上位）・機種別")
+#filter_exclude = st.checkbox("📋 Seat/IFE/Wi-Fiを除く")
 
-if filter_exclude:
-    target_df = df[
-        (~df['ATA_SubChapter'].isin(exclude_patterns)) &
-        (~df.apply(is_seat_related, axis=1))
-    ]
-else:
-    target_df = df
+#if filter_exclude:
+    #target_df = df[
+       # (~df['ATA_SubChapter'].isin(exclude_patterns)) &
+        #(~df.apply(is_seat_related, axis=1))
+   # ]
+#else:
+    #target_df = df
 
-col_a, col_b = st.columns(2)
-for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
-    with col:
-        st.markdown(f"#### ✈ {aircraft_type}")
-        filtered = target_df[(target_df['YearMonth'] == latest_month) & (target_df['Aircraft_Type'] == aircraft_type)]
-        top_mod = (
-            filtered.groupby(['MOD_Description', 'ATA_Chapter'])
-            .size()
-            .reset_index(name='件数')
-            .sort_values(by='件数', ascending=False)
-        )
-        st.dataframe(top_mod, use_container_width=True, hide_index=True, height=350)
+#col_a, col_b = st.columns(2)
+#for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
+   # with col:
+      #  st.markdown(f"#### ✈ {aircraft_type}")
+       # filtered = target_df[(target_df['YearMonth'] == latest_month) & (target_df['Aircraft_Type'] == aircraft_type)]
+      #  top_mod = (
+        #    filtered.groupby(['MOD_Description', 'ATA_Chapter'])
+         #   .size()
+         #   .reset_index(name='件数')
+         #   .sort_values(by='件数', ascending=False)
+       # )
+       # st.dataframe(top_mod, use_container_width=True, hide_index=True, height=350)
 
 
 # -------------------------------
 # ③ ATA別 月別不具合件数推移（直近1年）
 # -------------------------------
-st.header("③ ATA別 月別不具合件数推移（直近1年）")
+st.header("③ ATA別 Data")
 
 latest_date = df['Reported_Date'].max()
 one_year_ago = latest_date - DateOffset(years=1)
@@ -734,7 +734,7 @@ ata_monthly_sum = ata_monthly.groupby('ATA_Chapter')['Count'].sum().reset_index(
 ata_monthly_sorted = ata_monthly_sum.sort_values(by='Count', ascending=False)
 
 selected_ata = st.selectbox(
-    "📌 ATAチャプターを選択",
+    "📌 ATA Chapter",
     ata_monthly_sorted['ATA_Chapter'].tolist(),
     index=0
 )
@@ -756,7 +756,7 @@ fig_line = px.line(
     y='Count',
     color='ATA_SubChapter',
     markers=True,
-    title=f"ATA{selected_ata} のサブチャプター別不具合件数推移（直近1年）"
+    title=f"Chart for ATA{selected_ata} Subchapter"
 )
 fig_line.update_layout(
     xaxis_title="年月",
@@ -766,18 +766,18 @@ fig_line.update_layout(
 st.plotly_chart(fig_line, use_container_width=True)
 
 # --- サブチャプター選択と不具合詳細表示 ---
-st.subheader("🔍 サブチャプターごとの不具合詳細")
+st.subheader("🔍 Breakdown by Subchapter")
 
 subchapter_counts = ata_month['ATA_SubChapter'].value_counts().reset_index()
 subchapter_counts.columns = ['ATA_SubChapter', 'Count']
 
-selected_sub = st.selectbox("サブチャプターを選択（件数順）", subchapter_counts['ATA_SubChapter'].tolist())
+selected_sub = st.selectbox("Select Subchapter（Sorted by number）", subchapter_counts['ATA_SubChapter'].tolist())
 
 sub_df = ata_month[ata_month['ATA_SubChapter'] == selected_sub].copy()
 
 # Tailでフィルター可能なインターフェースを追加
 unique_tails = sorted(sub_df['Tail'].dropna().unique())
-tail_filter = st.selectbox("✈️ 表示する機体（Tail）を選択", options=["すべて"] + unique_tails)
+tail_filter = st.selectbox("✈️ Select Tail Number", options=["すべて"] + unique_tails)
 
 if tail_filter != "すべて":
     sub_df = sub_df[sub_df['Tail'] == tail_filter]
@@ -982,6 +982,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
