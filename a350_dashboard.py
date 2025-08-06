@@ -495,7 +495,7 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
         merged = merged.sort_values(by='Latest_Count', ascending=False)
         ata_orders[aircraft] = merged['ATA_Chapter'].astype(str).tolist()
 
-        # ================================
+# ================================
 # Top Driver（月別件数推移）
 # ================================
 st.markdown("### 🏆 Top Driver（過去1年 不具合件数上位10位）")
@@ -508,18 +508,18 @@ exclude_patterns = ["2520", "2521", "2528"] + \
 def is_seat_related(row):
     return (row['ATA_Chapter'] == "0" and "seat" in str(row['MOD_Description']).lower())
 
-# 除外フィルタのチェックボックス
-filter_exclude = st.checkbox("Seat/IFE/WiFi以外", value=False)
+# Top Driver専用フィルタチェックボックス
+filter_exclude_top_driver = st.checkbox("Seat/IFE/WiFi以外（Top Driverのみ適用）", value=False)
 
 # 対象期間（直近12か月）
 one_year_ago = (pd.Period(latest_month, freq='M') - 11).strftime('%Y-%m')
-df_recent_1y = df[df['YearMonth'] >= one_year_ago]
+df_recent_1y_top = df[df['YearMonth'] >= one_year_ago]
 
-# フィルタ適用
-if filter_exclude:
-    df_recent_1y = df_recent_1y[
-        (~df_recent_1y['ATA_SubChapter'].isin(exclude_patterns)) &
-        (~df_recent_1y.apply(is_seat_related, axis=1))
+# Top Driver用フィルタ適用
+if filter_exclude_top_driver:
+    df_recent_1y_top = df_recent_1y_top[
+        (~df_recent_1y_top['ATA_SubChapter'].isin(exclude_patterns)) &
+        (~df_recent_1y_top.apply(is_seat_related, axis=1))
     ]
 
 col_a, col_b = st.columns(2)
@@ -528,9 +528,9 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
     with col:
         st.markdown(f"#### ✈ {aircraft_type}")
 
-        df_type = df_recent_1y[df_recent_1y['Aircraft_Type'] == aircraft_type]
+        df_type = df_recent_1y_top[df_recent_1y_top['Aircraft_Type'] == aircraft_type]
 
-        # 上位10位のMOD_Descriptionを取得
+        # 上位10位のMOD_Descriptionを取得（直近月ベース）
         top_mod_list = (
             df_type[df_type['YearMonth'] == latest_month]
             .groupby('MOD_Description')
@@ -985,6 +985,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
