@@ -652,51 +652,6 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
         st.dataframe(top_mod, use_container_width=True, hide_index=True, height=350)
 
 
-
-# -------------------------------
-# ② ATA別不具合件数（直近月）
-# -------------------------------
-st.header("② ATA別不具合件数（直近月）")
-
-df_latest_month = df[df['YearMonth'] == latest_month]
-df_prev_month = df[df['YearMonth'] == prev_month]
-
-latest_counts = df_latest_month.groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
-prev_counts = df_prev_month.groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
-
-merged = pd.merge(latest_counts, prev_counts, on='ATA_Chapter', how='left').fillna(0)
-merged = merged.sort_values(by='Latest_Count', ascending=False)
-
-fig_ata = go.Figure(data=[
-    go.Bar(
-        name=f"{latest_month}",
-        x=merged['ATA_Chapter'],
-        y=merged['Latest_Count'],
-        marker_color='steelblue',
-        text=merged['Latest_Count'],
-        textposition='outside'
-    ),
-    go.Bar(
-        name=f"{prev_month}",
-        x=merged['ATA_Chapter'],
-        y=merged['Prev_Count'],
-        marker_color='lightcoral',
-        text=merged['Prev_Count'],
-        textposition='outside'
-    )
-])
-
-fig_ata.update_layout(
-    barmode='group',
-    title=f"ATA別不具合件数（{latest_month} と {prev_month}）",
-    xaxis_title="ATA Chapter",
-    yaxis_title="件数",
-    xaxis=dict(type='category'),
-    bargap=0.2
-)
-
-st.plotly_chart(fig_ata, use_container_width=True)
-
 # -------------------------------
 # ③ ATA別 月別不具合件数推移（直近1年）
 # -------------------------------
@@ -959,6 +914,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
