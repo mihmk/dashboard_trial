@@ -471,7 +471,7 @@ st.plotly_chart(fig_bar, use_container_width=True)
 
 
 # ================================
-# ✈ FLT SQ / Pilot Report
+# ✈ FLT SQ / Pilot Report（機種別）
 # ================================
 st.subheader("FLT SQ / Pilot Report")
 
@@ -479,82 +479,90 @@ st.subheader("FLT SQ / Pilot Report")
 latest_month = df['YearMonth'].max()
 prev_month = (pd.Period(latest_month, freq='M') - 1).strftime('%Y-%m')
 
-# フィルタ適用（Seat/IFE/WiFi除外）
-df_filtered = df.copy()
-if filter_exclude_graph:
-    df_filtered = filter_cabin_related(df_filtered)
+# 機種ごとにグラフ作成
+col_900, col_1000 = st.columns(2)
 
-# ATA Chapter で集計
-df_latest_month = df_filtered[df_filtered['YearMonth'] == latest_month]
-df_prev_month = df_filtered[df_filtered['YearMonth'] == prev_month]
+for aircraft, col in zip(['A350-900', 'A350-1000'], [col_900, col_1000]):
+    with col:
+        st.markdown(f"### ✈ {aircraft}")
 
-latest_counts = df_latest_month.groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
-prev_counts = df_prev_month.groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
+        # データ抽出
+        df_type = df[df['Aircraft_Type'] == aircraft].copy()
+        if filter_exclude_graph:
+            df_type = filter_cabin_related(df_type)
 
-merged = pd.merge(latest_counts, prev_counts, on='ATA_Chapter', how='left').fillna(0)
+        # 最新月 & 前月データ
+        df_latest_month = df_type[df_type['YearMonth'] == latest_month]
+        df_prev_month = df_type[df_type['YearMonth'] == prev_month]
 
-# 短期増加率
-merged['短期増加率(%)'] = ((merged['Latest_Count'] - merged['Prev_Count']) /
-                       merged['Prev_Count'].replace(0, pd.NA)) * 100
+        latest_counts = df_latest_month.groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
+        prev_counts = df_prev_month.groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
 
-# 長期増加率（6か月移動平均比）
-ata_monthly = df_filtered.groupby(['YearMonth', 'ATA_Chapter']).size().unstack(fill_value=0).sort_index()
-ata_ma6 = ata_monthly.rolling(window=6, min_periods=2).mean()
+        merged = pd.merge(latest_counts, prev_counts, on='ATA_Chapter', how='left').fillna(0)
 
-if latest_month in ata_ma6.index and prev_month in ata_ma6.index:
-    latest_ma = ata_ma6.loc[latest_month]
-    prev_ma = ata_ma6.loc[prev_month]
-    long_rate = ((latest_ma - prev_ma) / prev_ma.replace(0, pd.NA)) * 100
-    merged['長期増加率(%)'] = merged['ATA_Chapter'].map(long_rate).fillna(0)
-else:
-    merged['長期増加率(%)'] = 0
+        # 短期増加率
+        merged['短期増加率(%)'] = ((merged['Latest_Count'] - merged['Prev_Count']) /
+                               merged['Prev_Count'].replace(0, pd.NA)) * 100
 
-# 並べ替え（件数降順）
-merged = merged.sort_values(by='Latest_Count', ascending=False)
+        # 長期増加率（6か月移動平均比）
+        ata_monthly = df_type.groupby(['YearMonth', 'ATA_Chapter']).size().unstack(fill_value=0).sort_index()
+        ata_ma6 = ata_monthly.rolling(window=6, min_periods=2).mean()
 
-# グラフ作成
-fig_ata = go.Figure()
+        if latest_month in ata_ma6.index and prev_month in ata_ma6.index:
+            latest_ma = ata_ma6.loc[latest_month]
+            prev_ma = ata_ma6.loc[prev_month]
+            long_rate = ((latest_ma - prev_ma) / prev_ma.replace(0, pd.NA)) * 100
+            merged['長期増加率(%)'] = merged['ATA_Chapter'].map(long_rate).fillna(0)
+        else:
+            merged['長期増加率(%)'] = 0
 
-# 棒グラフ（直近月）
-fig_ata.add_trace(go.Bar(
-    name=f"{latest_month}",
-    x=merged['ATA_Chapter'],
-    y=merged['Latest_Count'],
-    marker_color='steelblue',
-    text=merged['Latest_Count'],
-    textposition='outside'
-))
+        # 件数降順に並べ替え
+        merged = merged.sort_values(by='Latest_Count', ascending=False)
 
-# 棒グラフ（前月）
-fig_ata.add_trace(go.Bar(
-    name=f"{prev_month}",
-    x=merged['ATA_Chapter'],
-    y=merged['Prev_Count'],
-    marker_color='lightcoral',
-    text=merged['Prev_Count'],
-    textposition='outside'
-))
+        # グラフ作成
+        fig_ata = go.Figure()
 
-# 上部に短期/長期増加率を表示
-fig_ata.add_trace(go.Scatter(
-    x=merged['ATA_Chapter'],
-    y=merged['Latest_Count'] + 1,  # 棒の上に配置
-    mode="text",
-    text=[f"短:{s:.1f}% 長:{l:.1f}%" for s, l in zip(merged['短期増加率(%)'], merged['長期増加率(%)'])],
-    textposition="top center",
-    showlegend=False
-))
+        # 棒グラフ（最新月）
+        fig_ata.add_trace(go.Bar(
+            name=f"{latest_month}",
+            x=merged['ATA_Chapter'],
+            y=merged['Latest_Count'],
+            marker_color='steelblue',
+            text=merged['Latest_Count'],
+            textposition='outside'
+        ))
 
-fig_ata.update_layout(
-    barmode='group',
-    title=f"ATA別不具合件数（{latest_month} と {prev_month}）",
-    xaxis_title="ATA Chapter",
-    yaxis_title="件数",
-    xaxis=dict(type='category'),
-    bargap=0.2
-)
+        # 棒グラフ（前月）
+        fig_ata.add_trace(go.Bar(
+            name=f"{prev_month}",
+            x=merged['ATA_Chapter'],
+            y=merged['Prev_Count'],
+            marker_color='lightcoral',
+            text=merged['Prev_Count'],
+            textposition='outside'
+        ))
 
-st.plotly_chart(fig_ata, use_container_width=True)
+        # 増加率表示（短期＆長期）
+        fig_ata.add_trace(go.Scatter(
+            x=merged['ATA_Chapter'],
+            y=merged['Latest_Count'] + 1,  # 棒の上に配置
+            mode="text",
+            text=[f"短:{s:.1f}% 長:{l:.1f}%" for s, l in zip(merged['短期増加率(%)'], merged['長期増加率(%)'])],
+            textposition="top center",
+            showlegend=False
+        ))
+
+        fig_ata.update_layout(
+            barmode='group',
+            title=f"ATA別不具合件数（{latest_month} と {prev_month}）",
+            xaxis_title="ATA Chapter",
+            yaxis_title="件数",
+            xaxis=dict(type='category'),
+            bargap=0.2
+        )
+
+        st.plotly_chart(fig_ata, use_container_width=True)
+
 
 
 
@@ -967,6 +975,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
