@@ -495,7 +495,7 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
 
 
 # ================================
-# Top Driver（月別件数推移）
+# Top Driver（月別件数推移、過去1年間総件数ベース）
 # ================================
 
 # 除外条件パターン
@@ -526,9 +526,9 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
     with col:
         df_type = df_recent_1y_top[df_recent_1y_top['Aircraft_Type'] == aircraft_type]
 
-        # 上位10位のMOD_Descriptionを取得（直近月ベース）
+        # 上位10位のMOD_Descriptionを取得（過去1年間の総件数ベース）
         top_mod_list = (
-            df_type[df_type['YearMonth'] == latest_month]
+            df_type
             .groupby('MOD_Description')
             .size()
             .sort_values(ascending=False)
@@ -561,51 +561,6 @@ for col, aircraft_type in zip([col_a, col_b], ["A350-900", "A350-1000"]):
         )
         st.plotly_chart(fig_top, use_container_width=True)
 
-
-        # --- 円グラフ（ATA比率） ---
-        counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Count')
-        fig_pie = go.Figure(go.Pie(
-            labels=counts['ATA_Chapter'],
-            values=counts['Count'],
-            textinfo='label',  # %は非表示
-            hole=0.3
-        ))
-        fig_pie.update_layout(
-            title=f"{aircraft_type} ATA別比率（{latest_month}）",
-            height=400,
-            margin=dict(t=40, b=0, l=0, r=0)
-        )
-        st.plotly_chart(fig_pie, use_container_width=True, key=f"fig_pie_{aircraft_type}")
-
-        # --- 棒グラフ（件数） ---
-        fig_count = go.Figure(data=[
-            go.Bar(
-                name=f"{latest_month}",
-                x=merged['ATA_Chapter'],
-                y=merged['Latest_Count'],
-                marker_color='steelblue',
-                text=merged['Latest_Count'],
-                textposition='outside'
-            ),
-            go.Bar(
-                name=f"{prev_month}",
-                x=merged['ATA_Chapter'],
-                y=merged['Prev_Count'],
-                marker_color='lightcoral',
-                text=merged['Prev_Count'],
-                textposition='outside'
-            )
-        ])
-        fig_count.update_layout(
-            barmode='group',
-            title=f"ATA別不具合件数（{latest_month} と {prev_month}）",
-            xaxis_title="ATA Chapter",
-            yaxis_title="件数",
-            xaxis=dict(type='category'),
-            bargap=0.2,
-            margin=dict(t=50)
-        )
-        st.plotly_chart(fig_count, use_container_width=True, key=f"fig_count_{aircraft_type}")
 
 # --- 増加率グラフ ---
 col_left, col_right = st.columns(2)
@@ -982,6 +937,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
