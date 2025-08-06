@@ -881,9 +881,10 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_a, col_b]):
     with col:
         # 選択されたサブチャプター＆機種のデータ抽出
         df_sub_tail = df_recent[
-            (df_recent['ATA_SubChapter'] == selected_subchapter) &
-            (df_recent['Aircraft_Type'] == aircraft)
+        (df_recent['ATA_SubChapter'] == selected_sub) &  # 修正済み
+        (df_recent['Aircraft_Type'] == aircraft)
         ]
+
 
         # 月別・機番ごとの件数集計
         tail_monthly = (
@@ -1059,6 +1060,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
