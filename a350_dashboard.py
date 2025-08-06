@@ -706,12 +706,15 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
 
 
 # -------------------------------
-# ATA別 月別不具合件数 + FC比 推移（2025年1月以降）
+# ATA別 月別不具合件数 + FC比 推移
 # -------------------------------
 st.header("Data by ATA chapter")
 
-# データ範囲（2025年1月以降）
-df_recent = df[df['Reported_Date'] >= pd.Timestamp("2025-01-01")]
+latest_date = df['Reported_Date'].max()
+one_year_ago = latest_date - DateOffset(years=1)
+
+# 不具合データ（直近1年間）
+df_recent = df[df['Reported_Date'] >= one_year_ago]
 
 # 月別・ATA別件数
 ata_monthly = df_recent.groupby(['ATA_Chapter', 'YearMonth']).size().reset_index(name='Count')
@@ -725,29 +728,29 @@ selected_ata = st.selectbox(
     index=0
 )
 
-# 機種別の左右並列表示
+# 機種別左右表示
 col_900, col_1000 = st.columns(2)
 
 for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
     with col:
-        # 該当ATA & 機種データ
+        # 該当ATA & 機種データ（不具合）
         ata_month = df_recent[(df_recent['ATA_Chapter'] == selected_ata) &
                               (df_recent['Aircraft_Type'] == aircraft)]
 
-        # 月別不具合件数
+        # 月別不具合件数（1年分）
         monthly_trend = ata_month.groupby('YearMonth').size().reset_index(name='Count')
 
         # 該当機種のFCデータ（AIBTYO DLI由来のDataFrameを df_fc と仮定）
         fc_monthly = df_fc[df_fc['Aircraft_Type'] == aircraft].groupby('YearMonth')['FC'].sum().reset_index()
 
-        # 不具合件数とFCを結合
+        # 件数とFCを結合（FC比はFCデータがある月のみ計算）
         merged = pd.merge(monthly_trend, fc_monthly, on='YearMonth', how='left')
-        merged['FC比'] = merged['Count'] / merged['FC']
+        merged['FC比'] = merged.apply(lambda r: r['Count'] / r['FC'] if pd.notna(r['FC']) else None, axis=1)
 
-        # グラフ作成（棒＋線、第二軸）
+        # グラフ作成（棒＝件数、線＝FC比）
         fig = go.Figure()
 
-        # 棒グラフ（件数）
+        # 件数（棒）
         fig.add_trace(go.Bar(
             x=merged['YearMonth'],
             y=merged['Count'],
@@ -755,7 +758,7 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
             marker_color='steelblue'
         ))
 
-        # 線グラフ（FC比）
+        # FC比（折れ線、右軸）
         fig.add_trace(go.Scatter(
             x=merged['YearMonth'],
             y=merged['FC比'],
@@ -771,7 +774,6 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
             yaxis=dict(title="件数"),
             yaxis2=dict(title="FC比", overlaying="y", side="right"),
             hovermode="x unified",
-            barmode='group',
             margin=dict(t=50)
         )
 
@@ -995,6 +997,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
