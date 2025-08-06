@@ -807,6 +807,7 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
 
 
 
+
 # --- サブチャプター選択と不具合詳細表示 ---
 st.subheader("🔍 Breakdown by Subchapter")
 
@@ -1024,6 +1025,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
