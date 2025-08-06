@@ -496,12 +496,13 @@ for aircraft, col in zip(aircraft_types, [col_pie1, col_pie2]):
             values='Count',
             title=f"{aircraft} 不具合ATA比率（{latest_month}）"
         )
-        fig_pie.update_traces(textinfo='percent+label')
+        # %は非表示、ATAだけ
+        fig_pie.update_traces(textinfo='label')
         st.plotly_chart(fig_pie, use_container_width=True)
 
 # ==== ATA別件数グラフ（機種別） ====
 col_bar1, col_bar2 = st.columns(2)
-ata_orders = {}  # 増加率グラフと揃えるために横軸順を保存
+ata_orders = {}
 
 for aircraft, col in zip(aircraft_types, [col_bar1, col_bar2]):
     with col:
@@ -555,12 +556,14 @@ for aircraft, col in zip(aircraft_types, [col_rate1, col_rate2]):
             latest_counts = ata_monthly.loc[latest_month]
             prev_counts = ata_monthly.loc[prev_month]
             short_term_rate = ((latest_counts - prev_counts) / prev_counts.replace(0, pd.NA)) * 100
+            short_term_rate = pd.to_numeric(short_term_rate, errors='coerce')  # 数値化
 
             # 長期増加率（6か月移動平均）
             ata_ma6 = ata_monthly.rolling(window=6, min_periods=2).mean()
             latest_ma = ata_ma6.loc[latest_month]
             prev_ma = ata_ma6.loc[prev_month]
             long_term_rate = ((latest_ma - prev_ma) / prev_ma.replace(0, pd.NA)) * 100
+            long_term_rate = pd.to_numeric(long_term_rate, errors='coerce')  # 数値化
 
             rate_df = pd.DataFrame({
                 'ATA_Chapter': short_term_rate.index,
@@ -1012,6 +1015,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
