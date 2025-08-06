@@ -706,7 +706,7 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
 
 
 # -------------------------------
-# ATA別 月別不具合件数 + FC比 推移
+# ATA別 月別不具合件数 + FC比 推移（左右比較）
 # -------------------------------
 st.header("Data by ATA chapter")
 
@@ -728,37 +728,35 @@ selected_ata = st.selectbox(
     index=0
 )
 
-# 機種別左右表示
+# ==== 左右共通のサブチャプター順序と色を作成 ====
+all_subchapters = sorted(df_recent[df_recent['ATA_Chapter'] == selected_ata]['ATA_SubChapter'].unique())
+base_colors = px.colors.qualitative.Plotly
+color_map = {sub: base_colors[i % len(base_colors)] for i, sub in enumerate(all_subchapters)}
+
 col_900, col_1000 = st.columns(2)
 
 for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
     with col:
-        # 該当ATA & 機種データ（不具合）
+        # 該当ATA & 機種データ
         ata_month = df_recent[(df_recent['ATA_Chapter'] == selected_ata) &
                               (df_recent['Aircraft_Type'] == aircraft)]
 
         # 月別不具合件数（1年分）
         monthly_trend = ata_month.groupby('YearMonth').size().reset_index(name='Count')
 
-        # 該当機種のFCデータ（df_fc: AIBTYO DLI由来）
+        # FCデータ（FC比は存在する月だけ計算）
         fc_monthly = df_fc[df_fc['Aircraft_Type'] == aircraft].groupby('YearMonth')['FC'].sum().reset_index()
-
-        # 件数とFCを結合（FC比はFCデータがある月のみ計算）
         merged = pd.merge(monthly_trend, fc_monthly, on='YearMonth', how='left')
         merged['FC比'] = merged.apply(lambda r: r['Count'] / r['FC'] if pd.notna(r['FC']) else None, axis=1)
 
-        # グラフ作成（棒＝件数、線＝FC比）
+        # 件数＋FC比グラフ
         fig = go.Figure()
-
-        # 件数（棒）
         fig.add_trace(go.Bar(
             x=merged['YearMonth'],
             y=merged['Count'],
             name='件数',
             marker_color='steelblue'
         ))
-
-        # FC比（折れ線、右軸）
         fig.add_trace(go.Scatter(
             x=merged['YearMonth'],
             y=merged['FC比'],
@@ -767,7 +765,6 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
             yaxis='y2',
             marker_color='orange'
         ))
-
         fig.update_layout(
             title=f"{aircraft} ATA{selected_ata} 月別件数 & FC比",
             xaxis_title="年月",
@@ -776,16 +773,16 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
             hovermode="x unified",
             margin=dict(t=50)
         )
-
         st.plotly_chart(fig, use_container_width=True)
 
-        # =========================
-        # サブチャプター別月別件数（線グラフ）
-        # =========================
-        sub_trend = (
-            ata_month.groupby(['YearMonth', 'ATA_SubChapter'])
-            .size()
-            .reset_index(name='Count')
+        # ==== サブチャプター別月別件数 ====
+        sub_trend = ata_month.groupby(['YearMonth', 'ATA_SubChapter']).size().reset_index(name='Count')
+
+        # 順序固定（左右で同じ順序）
+        sub_trend['ATA_SubChapter'] = pd.Categorical(
+            sub_trend['ATA_SubChapter'],
+            categories=all_subchapters,
+            ordered=True
         )
 
         fig_sub = px.line(
@@ -794,7 +791,8 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
             y='Count',
             color='ATA_SubChapter',
             markers=True,
-            title=f"{aircraft} ATA{selected_ata} サブチャプター別月別件数"
+            title=f"{aircraft} ATA{selected_ata} サブチャプター別月別件数",
+            color_discrete_map=color_map
         )
         fig_sub.update_layout(
             xaxis_title="年月",
@@ -802,9 +800,7 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
             hovermode="x unified",
             margin=dict(t=50)
         )
-
         st.plotly_chart(fig_sub, use_container_width=True)
-
 
 
 
@@ -1025,6 +1021,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
