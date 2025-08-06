@@ -468,33 +468,6 @@ fig_bar.update_layout(
 
 st.plotly_chart(fig_bar, use_container_width=True)
 
-
-
-# ================================
-# ✈ FLT SQ / Pilot Report
-# ================================
-st.subheader("FLT SQ / Pilot Report")
-
-latest_month = df['YearMonth'].max()
-prev_month = (pd.Period(latest_month, freq='M') - 1).strftime('%Y-%m')
-
-ata_orders = {}  # ATA並び順を保存
-
-col_left, col_right = st.columns(2)
-
-for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
-    with col:
-        st.markdown(f"### ✈ {aircraft}")
-
-        df_type = df[df['Aircraft_Type'] == aircraft]
-
-        # 件数集計
-        latest_counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
-        prev_counts = df_type[df_type['YearMonth'] == prev_month].groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
-        merged = pd.merge(latest_counts, prev_counts, on='ATA_Chapter', how='left').fillna(0)
-        merged = merged.sort_values(by='Latest_Count', ascending=False)
-        ata_orders[aircraft] = merged['ATA_Chapter'].astype(str).tolist()
-
 # ================================
 # ✈ FLT SQ / Pilot Report
 # ================================
@@ -1014,6 +987,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
