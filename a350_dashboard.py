@@ -488,16 +488,29 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
 
         df_type = df[df['Aircraft_Type'] == aircraft]
 
-        # 件数（棒グラフ）と円グラフを横並びに配置
-        bar_col, pie_col = st.columns([5, 1])  # 棒グラフ広め、円グラフ小さめ
-
-        # --- 棒グラフ（件数） ---
+        # 件数集計
         latest_counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
         prev_counts = df_type[df_type['YearMonth'] == prev_month].groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
         merged = pd.merge(latest_counts, prev_counts, on='ATA_Chapter', how='left').fillna(0)
         merged = merged.sort_values(by='Latest_Count', ascending=False)
         ata_orders[aircraft] = merged['ATA_Chapter'].astype(str).tolist()
 
+        # --- 円グラフ（ATA比率） ---
+        counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Count')
+        fig_pie = go.Figure(go.Pie(
+            labels=counts['ATA_Chapter'],
+            values=counts['Count'],
+            textinfo='label',  # %は非表示
+            hole=0.3
+        ))
+        fig_pie.update_layout(
+            title=f"{aircraft} ATA別比率（{latest_month}）",
+            height=400,
+            margin=dict(t=40, b=0, l=0, r=0)
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+        # --- 棒グラフ（件数） ---
         fig_count = go.Figure(data=[
             go.Bar(
                 name=f"{latest_month}",
@@ -525,18 +538,7 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             bargap=0.2,
             margin=dict(t=50)
         )
-        bar_col.plotly_chart(fig_count, use_container_width=True)
-
-        # --- 円グラフ（ATA比率） ---
-        counts = df_type[df_type['YearMonth'] == latest_month].groupby('ATA_Chapter').size().reset_index(name='Count')
-        fig_pie = go.Figure(go.Pie(
-            labels=counts['ATA_Chapter'],
-            values=counts['Count'],
-            textinfo='label',  # %は非表示、ATAだけ
-            hole=0.3
-        ))
-        fig_pie.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
-        pie_col.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_count, use_container_width=True)
 
 # --- 増加率グラフ ---
 col_left, col_right = st.columns(2)
@@ -566,23 +568,19 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
         else:
             long_term_rate = pd.Series(0, index=ata_monthly.columns)
 
+        # 並び順を件数順に合わせる
         rate_df = pd.DataFrame({
             'ATA_Chapter': ata_monthly.columns.astype(str),
             '短期増加率(%)': short_term_rate.round(1),
             '長期増加率(%)': long_term_rate.round(1)
         })
-
-        if aircraft in ata_orders and not rate_df.empty:
-            categories_order = ata_orders[aircraft]
+        if aircraft in ata_orders:
             rate_df['ATA_Chapter'] = pd.Categorical(
                 rate_df['ATA_Chapter'],
-                categories=categories_order,
+                categories=ata_orders[aircraft],
                 ordered=True
             )
-            try:
-                rate_df = rate_df.sort_values('ATA_Chapter')
-            except Exception:
-                pass
+            rate_df = rate_df.sort_values('ATA_Chapter')
 
         fig_rate = go.Figure(data=[
             go.Bar(
@@ -607,6 +605,7 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             margin=dict(t=30)
         )
         st.plotly_chart(fig_rate, use_container_width=True)
+
 
 
 
@@ -1019,6 +1018,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
