@@ -575,12 +575,22 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             '長期増加率(%)': long_term_rate.round(1)
         })
         if aircraft in ata_orders:
-            rate_df['ATA_Chapter'] = pd.Categorical(
-                rate_df['ATA_Chapter'],
-                categories=ata_orders[aircraft],
-                ordered=True
-            )
-            rate_df = rate_df.sort_values(by=['ATA_Chapter']).reset_index(drop=True)
+            # MultiIndex の可能性を解除
+            if isinstance(rate_df.columns, pd.MultiIndex):
+                rate_df.columns = ['_'.join(col) if isinstance(col, tuple) else col for col in rate_df.columns]
+                
+    # インデックスにある場合はカラムに戻す
+        if 'ATA_Chapter' not in rate_df.columns and 'ATA_Chapter' in rate_df.index.names:
+            rate_df = rate_df.reset_index()
+
+    # カテゴリ順ソート
+        rate_df['ATA_Chapter'] = pd.Categorical(
+            rate_df['ATA_Chapter'],
+            categories=ata_orders[aircraft],
+            ordered=True
+        )
+        rate_df = rate_df.sort_values('ATA_Chapter').reset_index(drop=True)
+
 
 
         fig_rate = go.Figure(data=[
@@ -1019,6 +1029,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
