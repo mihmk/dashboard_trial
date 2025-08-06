@@ -871,6 +871,44 @@ else:
     st.info("選択された条件に合致するデータがありません。")
 
 # -------------------------------
+# サブチャプター別 機番ごとの積み上げ棒グラフ
+# -------------------------------
+st.markdown("#### サブチャプター別 機番ごとの積み上げ棒グラフ")
+
+col_a, col_b = st.columns(2)
+
+for aircraft, col in zip(["A350-900", "A350-1000"], [col_a, col_b]):
+    with col:
+        # 選択されたサブチャプター＆機種のデータ抽出
+        df_sub_tail = df_recent[
+            (df_recent['ATA_SubChapter'] == selected_subchapter) &
+            (df_recent['Aircraft_Type'] == aircraft)
+        ]
+
+        # 月別・機番ごとの件数集計
+        tail_monthly = (
+            df_sub_tail.groupby(['YearMonth', 'Tail']).size().reset_index(name='Count')
+        )
+
+        # 積み上げ棒グラフ作成
+        fig_tail = px.bar(
+            tail_monthly,
+            x='YearMonth',
+            y='Count',
+            color='Tail',
+            title=f"{aircraft} ATA Subchapter {selected_subchapter} 月別件数（Tail別）",
+            barmode='stack'
+        )
+        fig_tail.update_layout(
+            xaxis_title="年月",
+            yaxis_title="件数",
+            hovermode="x unified",
+            margin=dict(t=50)
+        )
+        st.plotly_chart(fig_tail, use_container_width=True)
+
+
+# -------------------------------
 # ⑤ 部品（P/N）検索と履歴（履歴一覧表示 + 件数 + 日付絞り込み）
 # -------------------------------
 st.header("⑤ 部品（P/N）検索と履歴")
@@ -1021,6 +1059,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
