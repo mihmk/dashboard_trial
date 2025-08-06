@@ -471,99 +471,136 @@ st.plotly_chart(fig_bar, use_container_width=True)
 
 
 # ================================
-# ✈ FLT SQ / Pilot Report（機種別）
+# 📊 FLT SQ / Pilot Report
 # ================================
 st.subheader("FLT SQ / Pilot Report")
 
-# 月判定（直近月 & 前月）
+# 直近月と前月
 latest_month = df['YearMonth'].max()
-prev_month = (pd.Period(latest_month, freq='M') - 1).strftime('%Y-%m')
+prev_month = (pd.Period(latest_month) - 1).strftime("%Y-%m")
 
-# 機種ごとにグラフ作成
-col_900, col_1000 = st.columns(2)
+# 機種ごとに処理
+aircraft_types = ["A350-900", "A350-1000"]
 
-for aircraft, col in zip(['A350-900', 'A350-1000'], [col_900, col_1000]):
+# ==== 円グラフ（ATA比率） ====
+col_pie1, col_pie2 = st.columns(2)
+for aircraft, col in zip(aircraft_types, [col_pie1, col_pie2]):
     with col:
-        st.markdown(f"### ✈ {aircraft}")
+        df_type_latest = df[(df['Aircraft_Type'] == aircraft) & (df['YearMonth'] == latest_month)]
+        ata_ratio = df_type_latest['ATA_Chapter'].value_counts().reset_index()
+        ata_ratio.columns = ['ATA_Chapter', 'Count']
 
-        # データ抽出
-        df_type = df[df['Aircraft_Type'] == aircraft].copy()
-        if filter_exclude_graph:
-            df_type = filter_cabin_related(df_type)
+        fig_pie = px.pie(
+            ata_ratio,
+            names='ATA_Chapter',
+            values='Count',
+            title=f"{aircraft} 不具合ATA比率（{latest_month}）"
+        )
+        fig_pie.update_traces(textinfo='percent+label')
+        st.plotly_chart(fig_pie, use_container_width=True)
 
-        # 最新月 & 前月データ
-        df_latest_month = df_type[df_type['YearMonth'] == latest_month]
-        df_prev_month = df_type[df_type['YearMonth'] == prev_month]
+# ==== ATA別件数グラフ（機種別） ====
+col_bar1, col_bar2 = st.columns(2)
+ata_orders = {}  # 増加率グラフと揃えるために横軸順を保存
 
-        latest_counts = df_latest_month.groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
-        prev_counts = df_prev_month.groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
+for aircraft, col in zip(aircraft_types, [col_bar1, col_bar2]):
+    with col:
+        df_type_latest = df[(df['Aircraft_Type'] == aircraft) & (df['YearMonth'] == latest_month)]
+        df_type_prev = df[(df['Aircraft_Type'] == aircraft) & (df['YearMonth'] == prev_month)]
+
+        latest_counts = df_type_latest.groupby('ATA_Chapter').size().reset_index(name='Latest_Count')
+        prev_counts = df_type_prev.groupby('ATA_Chapter').size().reset_index(name='Prev_Count')
 
         merged = pd.merge(latest_counts, prev_counts, on='ATA_Chapter', how='left').fillna(0)
-
-        # 短期増加率
-        merged['短期増加率(%)'] = ((merged['Latest_Count'] - merged['Prev_Count']) /
-                               merged['Prev_Count'].replace(0, pd.NA)) * 100
-
-        # 長期増加率（6か月移動平均比）
-        ata_monthly = df_type.groupby(['YearMonth', 'ATA_Chapter']).size().unstack(fill_value=0).sort_index()
-        ata_ma6 = ata_monthly.rolling(window=6, min_periods=2).mean()
-
-        if latest_month in ata_ma6.index and prev_month in ata_ma6.index:
-            latest_ma = ata_ma6.loc[latest_month]
-            prev_ma = ata_ma6.loc[prev_month]
-            long_rate = ((latest_ma - prev_ma) / prev_ma.replace(0, pd.NA)) * 100
-            merged['長期増加率(%)'] = merged['ATA_Chapter'].map(long_rate).fillna(0)
-        else:
-            merged['長期増加率(%)'] = 0
-
-        # 件数降順に並べ替え
         merged = merged.sort_values(by='Latest_Count', ascending=False)
+        ata_orders[aircraft] = merged['ATA_Chapter'].tolist()
 
-        # グラフ作成
-        fig_ata = go.Figure()
-
-        # 棒グラフ（最新月）
-        fig_ata.add_trace(go.Bar(
-            name=f"{latest_month}",
-            x=merged['ATA_Chapter'],
-            y=merged['Latest_Count'],
-            marker_color='steelblue',
-            text=merged['Latest_Count'],
-            textposition='outside'
-        ))
-
-        # 棒グラフ（前月）
-        fig_ata.add_trace(go.Bar(
-            name=f"{prev_month}",
-            x=merged['ATA_Chapter'],
-            y=merged['Prev_Count'],
-            marker_color='lightcoral',
-            text=merged['Prev_Count'],
-            textposition='outside'
-        ))
-
-        # 増加率表示（短期＆長期）
-        fig_ata.add_trace(go.Scatter(
-            x=merged['ATA_Chapter'],
-            y=merged['Latest_Count'] + 1,  # 棒の上に配置
-            mode="text",
-            text=[f"短:{s:.1f}% 長:{l:.1f}%" for s, l in zip(merged['短期増加率(%)'], merged['長期増加率(%)'])],
-            textposition="top center",
-            showlegend=False
-        ))
-
-        fig_ata.update_layout(
+        fig_bar = go.Figure(data=[
+            go.Bar(
+                name=f"{latest_month}",
+                x=merged['ATA_Chapter'],
+                y=merged['Latest_Count'],
+                marker_color='steelblue',
+                text=merged['Latest_Count'],
+                textposition='outside'
+            ),
+            go.Bar(
+                name=f"{prev_month}",
+                x=merged['ATA_Chapter'],
+                y=merged['Prev_Count'],
+                marker_color='lightcoral',
+                text=merged['Prev_Count'],
+                textposition='outside'
+            )
+        ])
+        fig_bar.update_layout(
             barmode='group',
-            title=f"ATA別不具合件数（{latest_month} と {prev_month}）",
+            title=f"{aircraft} ATA別不具合件数",
             xaxis_title="ATA Chapter",
             yaxis_title="件数",
             xaxis=dict(type='category'),
             bargap=0.2
         )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
-        st.plotly_chart(fig_ata, use_container_width=True)
+# ==== 増加率グラフ（機種別） ====
+col_rate1, col_rate2 = st.columns(2)
+for aircraft, col in zip(aircraft_types, [col_rate1, col_rate2]):
+    with col:
+        df_type = df[df['Aircraft_Type'] == aircraft]
+        ata_monthly = df_type.groupby(['YearMonth', 'ATA_Chapter']).size().unstack(fill_value=0).sort_index()
 
+        if latest_month in ata_monthly.index and prev_month in ata_monthly.index:
+            # 短期増加率
+            latest_counts = ata_monthly.loc[latest_month]
+            prev_counts = ata_monthly.loc[prev_month]
+            short_term_rate = ((latest_counts - prev_counts) / prev_counts.replace(0, pd.NA)) * 100
 
+            # 長期増加率（6か月移動平均）
+            ata_ma6 = ata_monthly.rolling(window=6, min_periods=2).mean()
+            latest_ma = ata_ma6.loc[latest_month]
+            prev_ma = ata_ma6.loc[prev_month]
+            long_term_rate = ((latest_ma - prev_ma) / prev_ma.replace(0, pd.NA)) * 100
+
+            rate_df = pd.DataFrame({
+                'ATA_Chapter': short_term_rate.index,
+                '短期増加率(%)': short_term_rate.round(1),
+                '長期増加率(%)': long_term_rate.round(1)
+            }).dropna()
+
+            # 横軸順を件数グラフと揃える
+            rate_df['ATA_Chapter'] = pd.Categorical(rate_df['ATA_Chapter'], categories=ata_orders[aircraft], ordered=True)
+            rate_df = rate_df.sort_values('ATA_Chapter')
+
+            fig_rate = go.Figure(data=[
+                go.Bar(
+                    name="短期増加率",
+                    x=rate_df['ATA_Chapter'],
+                    y=rate_df['短期増加率(%)'],
+                    marker_color='royalblue',
+                    text=rate_df['短期増加率(%)'].astype(str) + '%',
+                    textposition='outside'
+                ),
+                go.Bar(
+                    name="長期増加率",
+                    x=rate_df['ATA_Chapter'],
+                    y=rate_df['長期増加率(%)'],
+                    marker_color='orange',
+                    text=rate_df['長期増加率(%)'].astype(str) + '%',
+                    textposition='outside'
+                )
+            ])
+            fig_rate.update_layout(
+                barmode='group',
+                title=f"{aircraft} ATA別増加率（短期/長期）",
+                xaxis_title="ATA Chapter",
+                yaxis_title="増加率(%)",
+                xaxis=dict(type='category'),
+                bargap=0.2
+            )
+            st.plotly_chart(fig_rate, use_container_width=True)
+        else:
+            st.info(f"{aircraft} の増加率比較を算出するのに十分な月次データがありません。")
 
 
 
@@ -975,6 +1012,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
