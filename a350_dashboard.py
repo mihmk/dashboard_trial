@@ -383,7 +383,9 @@ df_irregular_sorted = df_irregular_display[irreg_display_cols] \
     .sort_values("Date", ascending=False) \
     .reset_index(drop=True)
 
+# 表示（高さ調整のみ）
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
+
 
 
 st.subheader("Chart")
@@ -1059,6 +1061,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
