@@ -293,13 +293,13 @@ def load_fc_data():
 # 📊 Reliability（修正版：年月を datetime に変換して昇順で表示）
 # -------------------------------
 import numpy as np
+from pandas.tseries.offsets import DateOffset
 
 st.subheader("Operational Reliability")
 
 # FC データ読み込み（既存関数）
 df_fc = load_fc_data()
 
-# ---- 集計 ----
 # Irregular データ（月別・機種別）
 irreg_by_type = (
     df_irregular.groupby(["YearMonth", "Aircraft_Type"])
@@ -313,7 +313,7 @@ fc_by_type = (
     .rename(columns={"FC": "Total_FC"})
 )
 
-# マージ（機種別）
+# マージ
 rel_by_type = pd.merge(fc_by_type, irreg_by_type, on=["YearMonth", "Aircraft_Type"], how="left")
 rel_by_type["Irreg_Count"] = rel_by_type["Irreg_Count"].fillna(0)
 
@@ -331,20 +331,19 @@ irreg_total = (
     .reset_index(name="Irreg_Total")
 )
 
-# ---- YearMonth を datetime に変換（'YYYY-MM' 形式を想定） ----
-# 変換に失敗する行は NaT になるので後で除外
+# YearMonth を datetime に変換
 rel_by_type["YearMonth_dt"] = pd.to_datetime(rel_by_type["YearMonth"], format="%Y-%m", errors="coerce")
 irreg_total["YearMonth_dt"] = pd.to_datetime(irreg_total["YearMonth"], format="%Y-%m", errors="coerce")
 
-# 利用可能な最新年月を両方のデータから取得（NaT を除外）
+# 最新日付と直近12か月の範囲
 available_months = pd.concat([rel_by_type["YearMonth_dt"].dropna(), irreg_total["YearMonth_dt"].dropna()])
 if available_months.empty:
     st.info("Operational Reliability 表示のための年月データが不足しています。")
 else:
     max_dt = available_months.max()
-    min_dt = max_dt - DateOffset(months=11)  # 直近12か月
+    min_dt = max_dt - DateOffset(months=11)
 
-    # 直近12か月のデータに絞る（YearMonth_dt を基準）
+    # データを直近12か月に絞る
     rel_by_type_12 = rel_by_type[
         (rel_by_type["YearMonth_dt"] >= min_dt) &
         (rel_by_type["YearMonth_dt"] <= max_dt)
@@ -354,21 +353,19 @@ else:
         (irreg_total["YearMonth_dt"] <= max_dt)
     ].copy()
 
-    # 並び替え（昇順）
+    # 昇順ソート
     rel_by_type_12 = rel_by_type_12.sort_values("YearMonth_dt")
     irreg_total_12 = irreg_total_12.sort_values("YearMonth_dt")
 
-    # 機種ごとにデータを作る（欠損値を補うため、月列を揃えるのが必要ならここで補完）
-    # ここでは存在する月のみプロット（Irreg が存在しない月は 0 と扱う）
-    # Operational_Reliability が NaN の場合は 100% で埋める（要件に合わせて変更可）
+    # NaN を埋める
     rel_by_type_12["Operational_Reliability"] = rel_by_type_12["Operational_Reliability"].fillna(100)
 
-    # ---- グラフ作成 ----
+    # グラフ作成
     fig_rel_type = go.Figure()
 
-    # 機種別折れ線（datetime を x に渡すことで時系列順に正しく表示される）
+    # 機種別折れ線
     for ac_type, color in zip(["A350-900", "A350-1000"], ["royalblue", "crimson"]):
-        df_plot = rel_by_type_12[rel_by_type_12["Aircraft_Type"] == ac_type].copy()
+        df_plot = rel_by_type_12[rel_by_type_12["Aircraft_Type"] == ac_type]
         if df_plot.empty:
             continue
         fig_rel_type.add_trace(go.Scatter(
@@ -383,7 +380,7 @@ else:
             yaxis="y1"
         ))
 
-    # イレギュラー件数（棒グラフ：全機種合計）
+    # イレギュラー件数（棒グラフ）
     if not irreg_total_12.empty:
         fig_rel_type.add_trace(go.Bar(
             x=irreg_total_12["YearMonth_dt"],
@@ -394,13 +391,11 @@ else:
             opacity=0.6
         ))
 
-    # レイアウト（xaxis を date にして日付表示で整列）
-    # 縦軸の最小値を少し動的に下げることで 99% 前後の微妙な変動を見やすくする（ただし下限は 0）
+    # 縦軸レンジを動的調整
     min_rel = rel_by_type_12["Operational_Reliability"].min()
-    if pd.isna(min_rel):
-        y_lower = 0
-    else:
-        y_lower = max(0, min(95, (min_rel - 1)))  # デフォルト95 を基本に調整（必要に応じて変更）
+    y_lower = 0 if pd.isna(min_rel) else max(0, min(95, (min_rel - 1)))
+
+    # レイアウト
     fig_rel_type.update_layout(
         title="Operational Reliability (%)（機種別） & イレギュラー件数（月別・直近12か月）",
         xaxis=dict(type="date", title="年月", tickformat="%Y-%m"),
@@ -412,9 +407,6 @@ else:
     )
 
     st.plotly_chart(fig_rel_type, use_container_width=True)
-
-
-
 
 
 # --- Reliability グラフの下にイレギュラー内容の表を追加 ---
@@ -1111,6 +1103,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
