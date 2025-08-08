@@ -303,7 +303,7 @@ one_year_ago = (pd.to_datetime(latest_month, format="%Y-%m") - pd.DateOffset(mon
 
 # Irregular データ（月別・機種別）
 irreg_by_type = (
-    df_irregular.groupby(["YearMonth", "Aircraft_Type"], as_index=False)
+    df_irregular.groupby(["YearMonth", "Aircraft_Type"])
     .size()
     .reset_index(name="Irreg_Count")
 )
@@ -1078,6 +1078,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
