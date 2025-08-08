@@ -290,17 +290,16 @@ def load_fc_data():
 
 
 # -------------------------------
-# 📊 Reliability
+# 📊 Reliability（修正版：年月を datetime に変換して昇順で表示）
 # -------------------------------
+import numpy as np
+
 st.subheader("Operational Reliability")
 
-# FC データ読み込み
+# FC データ読み込み（既存関数）
 df_fc = load_fc_data()
 
-# 直近12か月の範囲を取得
-latest_month = df_fc["YearMonth"].max()
-one_year_ago = (pd.to_datetime(latest_month, format="%Y-%m") - pd.DateOffset(months=11)).strftime("%Y-%m")
-
+# ---- 集計 ----
 # Irregular データ（月別・機種別）
 irreg_by_type = (
     df_irregular.groupby(["YearMonth", "Aircraft_Type"])
@@ -314,69 +313,106 @@ fc_by_type = (
     .rename(columns={"FC": "Total_FC"})
 )
 
-# マージ
+# マージ（機種別）
 rel_by_type = pd.merge(fc_by_type, irreg_by_type, on=["YearMonth", "Aircraft_Type"], how="left")
-
-# 欠損補完（Irreg_Count が NaN の場合は 0）
 rel_by_type["Irreg_Count"] = rel_by_type["Irreg_Count"].fillna(0)
 
-# Operational Reliability (%) 計算
-rel_by_type["Operational_Reliability"] = (
-    (rel_by_type["Total_FC"] - rel_by_type["Irreg_Count"]) / rel_by_type["Total_FC"]
-) * 100
+# Operational Reliability (%)（ゼロ除算対策）
+rel_by_type["Operational_Reliability"] = np.where(
+    rel_by_type["Total_FC"] > 0,
+    ((rel_by_type["Total_FC"] - rel_by_type["Irreg_Count"]) / rel_by_type["Total_FC"]) * 100,
+    np.nan
+)
 
-# Irregular：全機種合計
+# Irregular：全機種合計（月別）
 irreg_total = (
     df_irregular.groupby("YearMonth")
     .size()
     .reset_index(name="Irreg_Total")
 )
 
-# 直近12か月分だけに絞る
-rel_by_type = rel_by_type[rel_by_type["YearMonth"] >= one_year_ago]
-irreg_total = irreg_total[irreg_total["YearMonth"] >= one_year_ago]
+# ---- YearMonth を datetime に変換（'YYYY-MM' 形式を想定） ----
+# 変換に失敗する行は NaT になるので後で除外
+rel_by_type["YearMonth_dt"] = pd.to_datetime(rel_by_type["YearMonth"], format="%Y-%m", errors="coerce")
+irreg_total["YearMonth_dt"] = pd.to_datetime(irreg_total["YearMonth"], format="%Y-%m", errors="coerce")
 
-# 月の昇順で並べ替え
-rel_by_type = rel_by_type.sort_values("YearMonth")
-irreg_total = irreg_total.sort_values("YearMonth")
+# 利用可能な最新年月を両方のデータから取得（NaT を除外）
+available_months = pd.concat([rel_by_type["YearMonth_dt"].dropna(), irreg_total["YearMonth_dt"].dropna()])
+if available_months.empty:
+    st.info("Operational Reliability 表示のための年月データが不足しています。")
+else:
+    max_dt = available_months.max()
+    min_dt = max_dt - DateOffset(months=11)  # 直近12か月
 
-# グラフ作成
-fig_rel_type = go.Figure()
+    # 直近12か月のデータに絞る（YearMonth_dt を基準）
+    rel_by_type_12 = rel_by_type[
+        (rel_by_type["YearMonth_dt"] >= min_dt) &
+        (rel_by_type["YearMonth_dt"] <= max_dt)
+    ].copy()
+    irreg_total_12 = irreg_total[
+        (irreg_total["YearMonth_dt"] >= min_dt) &
+        (irreg_total["YearMonth_dt"] <= max_dt)
+    ].copy()
 
-# 機種別折れ線
-for ac_type in ["A350-900", "A350-1000"]:
-    df_plot = rel_by_type[rel_by_type["Aircraft_Type"] == ac_type]
-    fig_rel_type.add_trace(go.Scatter(
-        x=df_plot["YearMonth"],
-        y=df_plot["Operational_Reliability"],
-        mode="lines+markers+text",
-        text=df_plot["Operational_Reliability"].round(2).astype(str) + "%",
-        textposition="top center",
-        textfont=dict(size=14, color="black", family="Arial Black"),
-        name=f"{ac_type} Operational Reliability (%)",
-        yaxis="y1"
-    ))
+    # 並び替え（昇順）
+    rel_by_type_12 = rel_by_type_12.sort_values("YearMonth_dt")
+    irreg_total_12 = irreg_total_12.sort_values("YearMonth_dt")
 
-# イレギュラー件数（棒グラフ）
-fig_rel_type.add_trace(go.Bar(
-    x=irreg_total["YearMonth"],
-    y=irreg_total["Irreg_Total"],
-    name="イレギュラー件数（全機種）",
-    yaxis="y2",
-    opacity=0.5
-))
+    # 機種ごとにデータを作る（欠損値を補うため、月列を揃えるのが必要ならここで補完）
+    # ここでは存在する月のみプロット（Irreg が存在しない月は 0 と扱う）
+    # Operational_Reliability が NaN の場合は 100% で埋める（要件に合わせて変更可）
+    rel_by_type_12["Operational_Reliability"] = rel_by_type_12["Operational_Reliability"].fillna(100)
 
-# レイアウト
-fig_rel_type.update_layout(
-    title="Operational Reliability (%)（機種別） & イレギュラー件数（月別・直近12か月）",
-    xaxis=dict(type="category", title="年月"),
-    yaxis=dict(title="Operational Reliability (%)", side="left", range=[95, 100]),
-    yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
-    barmode="overlay",
-    hovermode="x unified"
-)
+    # ---- グラフ作成 ----
+    fig_rel_type = go.Figure()
 
-st.plotly_chart(fig_rel_type, use_container_width=True)
+    # 機種別折れ線（datetime を x に渡すことで時系列順に正しく表示される）
+    for ac_type, color in zip(["A350-900", "A350-1000"], ["royalblue", "crimson"]):
+        df_plot = rel_by_type_12[rel_by_type_12["Aircraft_Type"] == ac_type].copy()
+        if df_plot.empty:
+            continue
+        fig_rel_type.add_trace(go.Scatter(
+            x=df_plot["YearMonth_dt"],
+            y=df_plot["Operational_Reliability"],
+            mode="lines+markers+text",
+            text=df_plot["Operational_Reliability"].round(2).astype(str) + "%",
+            textposition="top center",
+            textfont=dict(size=12, color="black", family="Arial Black"),
+            name=f"{ac_type} Operational Reliability (%)",
+            line=dict(color=color),
+            yaxis="y1"
+        ))
+
+    # イレギュラー件数（棒グラフ：全機種合計）
+    if not irreg_total_12.empty:
+        fig_rel_type.add_trace(go.Bar(
+            x=irreg_total_12["YearMonth_dt"],
+            y=irreg_total_12["Irreg_Total"],
+            name="イレギュラー件数（全機種）",
+            yaxis="y2",
+            marker=dict(color="lightgrey"),
+            opacity=0.6
+        ))
+
+    # レイアウト（xaxis を date にして日付表示で整列）
+    # 縦軸の最小値を少し動的に下げることで 99% 前後の微妙な変動を見やすくする（ただし下限は 0）
+    min_rel = rel_by_type_12["Operational_Reliability"].min()
+    if pd.isna(min_rel):
+        y_lower = 0
+    else:
+        y_lower = max(0, min(95, (min_rel - 1)))  # デフォルト95 を基本に調整（必要に応じて変更）
+    fig_rel_type.update_layout(
+        title="Operational Reliability (%)（機種別） & イレギュラー件数（月別・直近12か月）",
+        xaxis=dict(type="date", title="年月", tickformat="%Y-%m"),
+        yaxis=dict(title="Operational Reliability (%)", side="left", range=[y_lower, 100]),
+        yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
+        barmode="overlay",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0)
+    )
+
+    st.plotly_chart(fig_rel_type, use_container_width=True)
+
 
 
 
@@ -1078,6 +1114,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
