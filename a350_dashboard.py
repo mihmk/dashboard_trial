@@ -322,30 +322,40 @@ rel_by_type["Operational_Reliability"] = (
 # 欠損補完
 rel_by_type = rel_by_type.fillna({"Irreg_Count": 0, "Operational_Reliability": 100})
 
+# ---------- ここから昇順ソート処理 ----------
+# 日付型に変換
+rel_by_type["YearMonth_dt"] = pd.to_datetime(rel_by_type["YearMonth"], format="%Y-%m")
+rel_by_type = rel_by_type.sort_values("YearMonth_dt")
+
+# Irregular 全体も同様に並び替え
+irreg_total = (
+    df_irregular.groupby("YearMonth")
+    .size()
+    .reset_index(name="Irreg_Total")
+)
+irreg_total["YearMonth_dt"] = pd.to_datetime(irreg_total["YearMonth"], format="%Y-%m")
+irreg_total = irreg_total.sort_values("YearMonth_dt")
+
+# ------------------------------------------
 # グラフ
 fig_rel_type = go.Figure()
 
 for ac_type in ["A350-900", "A350-1000"]:
     df_plot = rel_by_type[rel_by_type["Aircraft_Type"] == ac_type]
     fig_rel_type.add_trace(go.Scatter(
-        x=df_plot["YearMonth"],
+        x=df_plot["YearMonth"].astype(str),  # 表示用に文字列に戻す
         y=df_plot["Operational_Reliability"],
         mode="lines+markers+text",
         text=df_plot["Operational_Reliability"].round(2).astype(str) + "%",
         textposition="top center",
-        textfont=dict(size=14, color="black", family="Arial Black"),  # ← サイズ・色・太さ
+        textfont=dict(size=14, color="black", family="Arial Black"),
         name=f"{ac_type} Operational Reliability (%)",
         yaxis="y1"
     ))
 
 # イレギュラー件数は棒グラフ（全機種合計）
-irreg_total = (
-    df_irregular.groupby("YearMonth")
-    .size()
-    .reset_index(name="Irreg_Total")
-)
 fig_rel_type.add_trace(go.Bar(
-    x=irreg_total["YearMonth"],
+    x=irreg_total["YearMonth"].astype(str),
     y=irreg_total["Irreg_Total"],
     name="イレギュラー件数（全機種）",
     yaxis="y2",
@@ -362,6 +372,7 @@ fig_rel_type.update_layout(
 )
 
 st.plotly_chart(fig_rel_type, use_container_width=True)
+
 
 
 # --- Reliability グラフの下にイレギュラー内容の表を追加 ---
@@ -1061,6 +1072,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
