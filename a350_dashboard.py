@@ -440,9 +440,6 @@ df_irregular_sorted = df_irregular_display[irreg_display_cols] \
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 
 
-
-st.subheader("Chart")
-
 # データ範囲を取得
 min_date = df_irregular["Date"].min().date()
 max_date = df_irregular["Date"].max().date()
@@ -1114,6 +1111,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
