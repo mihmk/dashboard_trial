@@ -437,11 +437,11 @@ min_date = df_irregular["Date"].min().date()
 max_date = df_irregular["Date"].max().date()
 
 # 選択期間のデータを抽出
-start_date, end_date = date_range
-df_irreg_period = df_irregular[
-    (df_irregular["Date"].dt.date >= start_date) &
-    (df_irregular["Date"].dt.date <= end_date)
-]
+#start_date, end_date = date_range
+#df_irreg_period = df_irregular[
+    #(df_irregular["Date"].dt.date >= start_date) &
+    #(df_irregular["Date"].dt.date <= end_date)
+#]
 
 # ================================
 # 📊 イレギュラー件数（ATA別・上位50位） 縦棒グラフ（選択期間を反映）
@@ -1100,6 +1100,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
