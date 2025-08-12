@@ -453,64 +453,44 @@ df_irreg_period = df_irregular[
 ]
 
 # ================================
-# 📊 イレギュラー ATA別件数 横棒グラフ
+# 📊 イレギュラー件数（ATA別・上位50位） 縦棒グラフに変更
 # ================================
-st.subheader("Chart")
-
-# 期間選択（スライダー） - ユニークキー付きで重複防止
-min_date = df_irregular["Date"].min().date()
-max_date = df_irregular["Date"].max().date()
-start_date, end_date = st.slider(
-     "期間を選択してください",
-    min_value=min_date,
-    max_value=max_date,
-    value=(min_date, max_date),
-    format="YYYY-MM-DD",
-    key="slider_ata_chart"
+df_irregular_counts = (
+    df_irregular.groupby("ATA_SubChapter")
+    .size()
+    .reset_index(name="Count")
+    .sort_values("Count", ascending=False)
+    .head(50)
 )
 
-# 集計関数をキャッシュ
-@st.cache_data
-def aggregate_irregular_by_ata(df, start, end):
-    df_period = df[(df["Date"].dt.date >= start) & (df["Date"].dt.date <= end)]
-    ata_counts = (
-        df_period.groupby("ATA_SubChapter")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=True)
+# 順序を固定（件数降順）
+categories = df_irregular_counts["ATA_SubChapter"].astype(str).tolist()
+
+fig_irregular_bar = go.Figure(data=[
+    go.Bar(
+        x=df_irregular_counts["ATA_SubChapter"].astype(str),
+        y=df_irregular_counts["Count"],
+        marker_color="steelblue",
+        text=df_irregular_counts["Count"],
+        textposition="outside"
     )
-    # 件数上位50件のみ
-    ata_counts = ata_counts.tail(50)
-    categories = ata_counts["ATA_SubChapter"].astype(str).tolist()
-    return ata_counts, categories
+])
 
-# 集計実行
-ata_counts, categories = aggregate_irregular_by_ata(df_irregular, start_date, end_date)
-
-# 横棒グラフ作成（見やすさ調整）
-fig_bar = go.Figure(go.Bar(
-    x=ata_counts["Count"],
-    y=ata_counts["ATA_SubChapter"].astype(str),
-    orientation="h",
-    marker=dict(color="skyblue"),
-    text=ata_counts["Count"],  # 件数表示
-    textposition="outside"
-))
-
-fig_bar.update_layout(
-    title="イレギュラー件数（ATA別・上位50件）",
-    xaxis_title="件数",
-    yaxis_title="ATA_SubChapter",
-    yaxis=dict(
+fig_irregular_bar.update_layout(
+    title="イレギュラー件数（ATA別・上位50位）",
+    xaxis_title="ATA_SubChapter",
+    yaxis_title="件数",
+    xaxis=dict(
+        type="category",
         categoryorder="array",
         categoryarray=categories
     ),
-    height=min(max(500, len(categories) * 35), 1000),  # 棒を太めに
-    margin=dict(l=120, r=50, t=50, b=50),
-    bargap=0.15  # 棒と棒の間隔
+    bargap=0.2,
+    margin=dict(t=50)
 )
 
-st.plotly_chart(fig_bar, use_container_width=True)
+st.plotly_chart(fig_irregular_bar, use_container_width=True)
+
 
 # ================================
 # ✈ FLT SQ / Pilot Report
@@ -1103,6 +1083,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
