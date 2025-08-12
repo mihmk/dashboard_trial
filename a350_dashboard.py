@@ -436,15 +436,6 @@ st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 min_date = df_irregular["Date"].min().date()
 max_date = df_irregular["Date"].max().date()
 
-# 期間選択スライダー
-date_range = st.slider(
-    "期間を選択してください",
-    min_value=min_date,
-    max_value=max_date,
-    value=(min_date, max_date),
-    format="YYYY-MM-DD"
-)
-
 # 選択期間のデータを抽出
 start_date, end_date = date_range
 df_irreg_period = df_irregular[
@@ -1109,6 +1100,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
