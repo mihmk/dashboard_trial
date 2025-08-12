@@ -444,69 +444,60 @@ max_date = df_irregular["Date"].max().date()
 #]
 
 # ================================
-# 📊 イレギュラー件数（ATA別・上位50位） 縦棒グラフ（選択期間を反映）
+# 📊 イレギュラー件数（ATA別・上位50位）機種別表示
 # ================================
-st.subheader("Chart")
 
-# 期間選択（スライダー） - key は既存の "slider_ata_chart" を維持
-min_date = df_irregular["Date"].min().date()
-max_date = df_irregular["Date"].max().date()
-start_date, end_date = st.slider(
-    "期間を選択してください",
-    min_value=min_date,
-    max_value=max_date,
-    value=(min_date, max_date),
-    format="YYYY-MM-DD",
-    key="slider_ata_chart"
-)
+# 期間フィルタ適用後のデータを使う
+df_irregular_filtered = df_irregular[
+    (df_irregular["Date"] >= start_date) & (df_irregular["Date"] <= end_date)
+]
 
-# 選択期間でフィルタして集計（キャッシュは一旦外しています。大量データで重い場合は後述参照）
-df_period = df_irregular[
-    (df_irregular["Date"].dt.date >= start_date) &
-    (df_irregular["Date"].dt.date <= end_date)
-].copy()
+# 機種別データ分割
+df_irregular_900 = df_irregular_filtered[df_irregular_filtered["AircraftType"] == "A350-900"]
+df_irregular_1000 = df_irregular_filtered[df_irregular_filtered["AircraftType"] == "A350-1000"]
 
-if df_period.empty:
-    st.info("選択期間のデータがありません。期間を変更してください。")
-else:
-    ata_counts = (
-        df_period.groupby("ATA_SubChapter")
+# 集計関数
+def make_irregular_bar(df, title):
+    df_counts = (
+        df.groupby("ATA_SubChapter")
         .size()
         .reset_index(name="Count")
         .sort_values("Count", ascending=False)
-        .head(50)   # 上位50件
+        .head(50)
     )
 
-    # 表示用文字列に変換（欠損がある場合も安全に扱う）
-    ata_counts["ATA_SubChapter"] = ata_counts["ATA_SubChapter"].astype(str)
-    categories = ata_counts["ATA_SubChapter"].tolist()
+    categories = df_counts["ATA_SubChapter"].astype(str).tolist()
 
-    # 縦棒グラフ（ATAを横軸、件数を縦軸）
-    fig_bar = go.Figure(go.Bar(
-        x=ata_counts["ATA_SubChapter"],
-        y=ata_counts["Count"],
-        marker_color="steelblue",
-        text=ata_counts["Count"],
-        textposition="outside"
-    ))
+    fig = go.Figure(data=[
+        go.Bar(
+            x=df_counts["ATA_SubChapter"].astype(str),
+            y=df_counts["Count"],
+            marker_color="steelblue",
+            text=df_counts["Count"],
+            textposition="outside"
+        )
+    ])
 
-    fig_bar.update_layout(
-        title=f"イレギュラー件数（ATA別・上位50位）  {start_date} 〜 {end_date}",
-        xaxis_title="ATA SubChapter",
+    fig.update_layout(
+        title=title,
+        xaxis_title="ATA_SubChapter",
         yaxis_title="件数",
         xaxis=dict(
             type="category",
             categoryorder="array",
-            categoryarray=categories,
-            tickangle=-45
+            categoryarray=categories
         ),
         bargap=0.2,
-        margin=dict(t=60, b=120, l=50, r=20),
-        height=min(max(400, len(categories) * 30), 1200)
+        margin=dict(t=50)
     )
+    return fig
 
-    st.plotly_chart(fig_bar, use_container_width=True)
-
+# 2カラムで並べて表示
+col1, col2 = st.columns(2)
+with col1:
+    st.plotly_chart(make_irregular_bar(df_irregular_900, "イレギュラー件数（A350-900 上位50位）"), use_container_width=True)
+with col2:
+    st.plotly_chart(make_irregular_bar(df_irregular_1000, "イレギュラー件数（A350-1000 上位50位）"), use_container_width=True)
 
 
 # ================================
@@ -1100,6 +1091,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
