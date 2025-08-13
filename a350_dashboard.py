@@ -443,10 +443,17 @@ max_date = df_irregular["Date"].max().date()
     #(df_irregular["Date"].dt.date <= end_date)
 #]
 
-# ================================
+# -------------------------------
 # 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ + フィルタ
-# ================================
+# -------------------------------
 st.subheader("イレギュラー件数（ATA別・上位50位） 機種別 + 比率")
+
+# 表示モード選択
+display_mode = st.radio(
+    "表示モードを選択してください",
+    ["Count", "OI rate (100 TO)"],
+    horizontal=True
+)
 
 # 期間選択
 min_date = df_irregular["Date"].min().date()
@@ -461,7 +468,7 @@ start_date, end_date = st.slider(
 )
 
 # フィルタ用チェックボックス
-exclude_seat = st.checkbox("Seat/IFE/Wi-Fi以外のみ表示（2520, 2528, 2521, 442X, 443X を除外）")
+exclude_seat = st.checkbox("Seat/IFE/Wi-Fi以外のみ表示（2500, 2520, 2528, 2521, 4400, 442X, 443X を除外）")
 
 # 選択期間でフィルタ
 df_period = df_irregular[
@@ -478,6 +485,11 @@ if exclude_seat:
     pattern = re.compile("|".join(exclude_patterns))
     df_period = df_period[~df_period["ATA_SubChapter"].astype(str).str.match(pattern)]
 
+# 選択期間のFCデータ
+df_fc_period = df_fc[
+    (pd.to_datetime(df_fc["Date"]).dt.date >= start_date) &
+    (pd.to_datetime(df_fc["Date"]).dt.date <= end_date)
+].copy()
 
 if df_period.empty:
     st.info("選択期間のデータがありません。期間を変更してください。")
@@ -496,10 +508,17 @@ else:
                 df_ac.groupby("ATA_SubChapter")
                 .size()
                 .reset_index(name="Count")
-                .sort_values("Count", ascending=False)
-                .head(50)
             )
 
+            if display_mode == "OI rate (100 TO)":
+                # 該当機種の総FC
+                total_fc = df_fc_period[df_fc_period["Aircraft_Type"] == ac_type]["FC"].sum()
+                if total_fc > 0:
+                    ata_counts["Count"] = ata_counts["Count"] / total_fc * 100
+                else:
+                    ata_counts["Count"] = 0
+
+            ata_counts = ata_counts.sort_values("Count", ascending=False).head(50)
             ata_counts["ATA_SubChapter"] = ata_counts["ATA_SubChapter"].astype(str)
             categories = ata_counts["ATA_SubChapter"].tolist()
 
@@ -508,14 +527,15 @@ else:
                 x=ata_counts["ATA_SubChapter"],
                 y=ata_counts["Count"],
                 marker_color="steelblue",
-                text=ata_counts["Count"],
+                text=ata_counts["Count"].round(2) if display_mode != "Count" else ata_counts["Count"],
                 textposition="outside"
             ))
 
+            y_title = "件数" if display_mode == "Count" else "OI rate (100 TO)"
             fig_bar.update_layout(
-                title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date}",
+                title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date} [{display_mode}]",
                 xaxis_title="ATA SubChapter",
-                yaxis_title="件数",
+                yaxis_title=y_title,
                 xaxis=dict(
                     type="category",
                     categoryorder="array",
@@ -534,7 +554,7 @@ else:
                 ata_counts,
                 names="ATA_SubChapter",
                 values="Count",
-                title=f"サブチャプター別 不具合比率 - {ac_type}",
+                title=f"サブチャプター別 不具合比率 - {ac_type} [{display_mode}]",
                 hole=0.3
             )
             fig_pie.update_traces(textposition="inside", textinfo="percent+label")
@@ -1133,6 +1153,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
