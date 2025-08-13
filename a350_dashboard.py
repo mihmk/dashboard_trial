@@ -472,9 +472,12 @@ df_period = df_irregular[
 # Seat/IFE/Wi-Fi 除外処理
 if exclude_seat:
     import re
-    exclude_patterns = [r"2520", r"2528", r"2521", r"442\d", r"443\d"]
+    exclude_patterns = [
+        r"2500", r"2520", r"2528", r"2521", r"4400", r"442\d", r"443\d"
+    ]
     pattern = re.compile("|".join(exclude_patterns))
     df_period = df_period[~df_period["ATA_SubChapter"].astype(str).str.match(pattern)]
+
 
 if df_period.empty:
     st.info("選択期間のデータがありません。期間を変更してください。")
@@ -1130,6 +1133,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
