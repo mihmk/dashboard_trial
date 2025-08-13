@@ -444,14 +444,11 @@ max_date = df_irregular["Date"].max().date()
 #]
 
 # ================================
-# 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） ※Operational Reliability内
-# ================================
-# ================================
-# 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ
+# 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ + フィルタ
 # ================================
 st.subheader("イレギュラー件数（ATA別・上位50位） 機種別 + 比率")
 
-# 期間選択（スライダー） - key は既存の "slider_ata_chart" を維持
+# 期間選択
 min_date = df_irregular["Date"].min().date()
 max_date = df_irregular["Date"].max().date()
 start_date, end_date = st.slider(
@@ -463,11 +460,21 @@ start_date, end_date = st.slider(
     key="slider_ata_chart"
 )
 
+# フィルタ用チェックボックス
+exclude_seat = st.checkbox("Seat/IFE/Wi-Fi以外のみ表示（2520, 2528, 2521, 442X, 443X を除外）")
+
 # 選択期間でフィルタ
 df_period = df_irregular[
     (df_irregular["Date"].dt.date >= start_date) &
     (df_irregular["Date"].dt.date <= end_date)
 ].copy()
+
+# Seat/IFE/Wi-Fi 除外処理
+if exclude_seat:
+    import re
+    exclude_patterns = [r"2520", r"2528", r"2521", r"442\d", r"443\d"]
+    pattern = re.compile("|".join(exclude_patterns))
+    df_period = df_period[~df_period["ATA_SubChapter"].astype(str).str.match(pattern)]
 
 if df_period.empty:
     st.info("選択期間のデータがありません。期間を変更してください。")
@@ -1123,6 +1130,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
