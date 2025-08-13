@@ -460,12 +460,16 @@ start_date, end_date = st.slider(
     key="slider_ata_chart"
 )
 
-# Count / OI Rate 切替
-display_mode = st.radio("表示形式を選択してください", ["Count", "OI Rate (100 TO)"])
+# 表示モード選択
+display_mode = st.radio(
+    "表示モード",
+    ("Count", "OI Rate (100 TO)"),
+    horizontal=True
+)
 
 # Seat/IFE/Wi-Fi除外チェック
 exclude_seat = st.checkbox(
-    "Seat/IFE/Wi-Fi以外のみ表示（2500, 2520, 2528, 2521, 4400, 442X, 443X を除外）"
+    "Seat/IFE/Wi-Fi以外のみ表示（2500, 2520, 2528, 2521, 4400, 442X, 443Xを除外）"
 )
 
 # 選択期間でフィルタ
@@ -474,7 +478,7 @@ df_period = df_irregular[
     (df_irregular["Date"].dt.date <= end_date)
 ].copy()
 
-# Seat/IFE/Wi-Fi除外処理
+# Seat/IFE/Wi-Fi 除外処理
 if exclude_seat:
     exclude_patterns = [r"2500", r"2520", r"2528", r"2521", r"4400", r"442\d", r"443\d"]
     pattern = re.compile("|".join(exclude_patterns))
@@ -492,46 +496,51 @@ else:
                 st.info(f"{ac_type} のデータが選択期間にありません。")
                 continue
 
-            # ATA SubChapter別集計
-            ata_counts = df_ac.groupby("ATA_SubChapter").size().reset_index(name="Count").sort_values("Count", ascending=False).head(50)
+            # ATA SubChapter別件数集計（上位50）
+            ata_counts = (
+                df_ac.groupby("ATA_SubChapter")
+                .size()
+                .reset_index(name="Count")
+                .sort_values("Count", ascending=False)
+                .head(50)
+            )
             ata_counts["ATA_SubChapter"] = ata_counts["ATA_SubChapter"].astype(str)
             categories = ata_counts["ATA_SubChapter"].tolist()
 
-            # OI Rate計算
+            # OI Rate 計算（表示モードが OI Rate の場合）
             if display_mode == "OI Rate (100 TO)":
-                fc_sum = df_fc[df_fc["Aircraft_Type"] == ac_type]["FC"].sum()
-                ata_counts["Count"] = np.where(fc_sum > 0, (ata_counts["Count"] / fc_sum) * 100, 0)
+                # df_fc から機種別合計FCを取得
+                df_fc_ac = df_fc[df_fc["Aircraft_Type"] == ac_type]
+                total_fc = df_fc_ac["FC"].sum() if not df_fc_ac.empty else 1
+                ata_counts["Count"] = ata_counts["Count"] / total_fc * 100
                 yaxis_title = "OI Rate (100 TO)"
             else:
                 yaxis_title = "件数"
 
-            # 縦棒グラフ
+            # 横棒グラフ
             fig_bar = go.Figure(go.Bar(
-                x=ata_counts["ATA_SubChapter"],
-                y=ata_counts["Count"],
+                x=ata_counts["Count"],                # 件数/OI Rate
+                y=ata_counts["ATA_SubChapter"],       # ATA
+                orientation="h",
                 marker_color="steelblue",
                 text=ata_counts["Count"].round(2) if display_mode=="OI Rate (100 TO)" else ata_counts["Count"],
                 textposition="outside"
             ))
-
             fig_bar.update_layout(
                 title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date}",
-                xaxis_title="ATA SubChapter",
-                yaxis_title=yaxis_title,
-                xaxis=dict(
-                    type="category",
+                xaxis_title=yaxis_title,
+                yaxis_title="ATA SubChapter",
+                yaxis=dict(
                     categoryorder="array",
-                    categoryarray=categories,
-                    tickangle=-45
+                    categoryarray=categories[::-1]  # 上位を上に
                 ),
                 bargap=0.2,
-                margin=dict(t=60, b=120, l=50, r=20),
-                height=min(max(400, len(categories) * 30), 1200)
+                margin=dict(t=60, b=120, l=120, r=20),
+                height=min(max(400, len(categories) * 25), 1200)
             )
-
             st.plotly_chart(fig_bar, use_container_width=True)
 
-            # 円グラフ
+            # 円グラフ（比率）
             fig_pie = px.pie(
                 ata_counts,
                 names="ATA_SubChapter",
@@ -541,8 +550,6 @@ else:
             )
             fig_pie.update_traces(textposition="inside", textinfo="percent+label")
             st.plotly_chart(fig_pie, use_container_width=True)
-
-
 
 # ================================
 # ✈ FLT SQ / Pilot Report
@@ -1135,6 +1142,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
