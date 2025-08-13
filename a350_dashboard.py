@@ -524,13 +524,14 @@ irreg_display_cols = [
 df_irregular_display = df_irregular.copy()
 df_irregular_display["Date"] = df_irregular_display["Date"].dt.strftime("%Y-%m-%d")
 
-# ATA_SubChapter 用のフィルター選択
-ata_options = ["All"] + sorted(df_irregular_display["ATA_SubChapter"].astype(str).unique().tolist())
-selected_ata = st.selectbox("表示する ATA_SubChapter を選択してください", ata_options)
+# ATAチャプター（最初の2桁）用のフィルター選択
+df_irregular_display["ATA_Chapter"] = df_irregular_display["ATA_SubChapter"].astype(str).str[:2]
+ata_chapter_options = ["All"] + sorted(df_irregular_display["ATA_Chapter"].unique().tolist())
+selected_ata_chapter = st.selectbox("表示する ATA チャプターを選択してください", ata_chapter_options)
 
 # 選択に応じてフィルタリング
-if selected_ata != "All":
-    df_irregular_display = df_irregular_display[df_irregular_display["ATA_SubChapter"].astype(str) == selected_ata]
+if selected_ata_chapter != "All":
+    df_irregular_display = df_irregular_display[df_irregular_display["ATA_Chapter"] == selected_ata_chapter]
 
 # 表示（インデックス削除）
 df_irregular_sorted = df_irregular_display[irreg_display_cols] \
@@ -539,7 +540,6 @@ df_irregular_sorted = df_irregular_display[irreg_display_cols] \
 
 # 表示（高さ調整のみ）
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
-
             
             
 # ================================
@@ -1133,6 +1133,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
