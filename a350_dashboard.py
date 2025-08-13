@@ -543,17 +543,17 @@ else:
             height=min(max(400, len(ata_counts) * 25), 1200)
         )
         st.plotly_chart(fig_bar, use_container_width=True)
-
-            # 円グラフ（比率）
-            fig_pie = px.pie(
-                ata_counts,
-                names="ATA_SubChapter",
-                values="Count",
-                title=f"サブチャプター別 不具合比率 - {ac_type}",
-                hole=0.3
-            )
-            fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig_pie, use_container_width=True)
+        
+        # 円グラフ（比率）
+        fig_pie = px.pie(
+            ata_counts,
+            names="ATA_SubChapter",
+            values="Count",
+            title=f"サブチャプター別 不具合比率 - {ac_type}",
+            hole=0.3
+        )
+        fig_pie.update_traces(textposition="inside", textinfo="percent+label")
+        st.plotly_chart(fig_pie, use_container_width=True)
 
 # ================================
 # ✈ FLT SQ / Pilot Report
@@ -1146,6 +1146,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
