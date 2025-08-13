@@ -542,8 +542,7 @@ else:
             margin=dict(t=60, b=50, l=150, r=20),
             height=min(max(400, len(ata_counts) * 25), 1200)
         )
-
-            st.plotly_chart(fig_bar, use_container_width=True)
+        st.plotly_chart(fig_bar, use_container_width=True)
 
             # 円グラフ（比率）
             fig_pie = px.pie(
@@ -1147,6 +1146,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
