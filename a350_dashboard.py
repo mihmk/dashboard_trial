@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from datetime import datetime
 from pandas.tseries.offsets import DateOffset
 import time
+import re
+
 
 st.set_page_config(page_title="A350 Dashboard with COA POST Count", layout="wide")
 
@@ -1133,6 +1135,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
