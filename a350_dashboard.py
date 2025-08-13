@@ -444,7 +444,7 @@ max_date = df_irregular["Date"].max().date()
 #]
 
 # ================================
-# 📊 イレギュラー件数（ATA別・上位50位） 縦棒グラフ（選択期間を反映）
+# 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） ※Operational Reliability内
 # ================================
 st.subheader("Chart")
 
@@ -460,7 +460,7 @@ start_date, end_date = st.slider(
     key="slider_ata_chart"
 )
 
-# 選択期間でフィルタして集計（キャッシュは一旦外しています。大量データで重い場合は後述参照）
+# 選択期間でフィルタ
 df_period = df_irregular[
     (df_irregular["Date"].dt.date >= start_date) &
     (df_irregular["Date"].dt.date <= end_date)
@@ -469,43 +469,53 @@ df_period = df_irregular[
 if df_period.empty:
     st.info("選択期間のデータがありません。期間を変更してください。")
 else:
-    ata_counts = (
-        df_period.groupby("ATA_SubChapter")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-        .head(50)   # 上位50件
-    )
+    col_900, col_1000 = st.columns(2)
 
-    # 表示用文字列に変換（欠損がある場合も安全に扱う）
-    ata_counts["ATA_SubChapter"] = ata_counts["ATA_SubChapter"].astype(str)
-    categories = ata_counts["ATA_SubChapter"].tolist()
+    for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
+        with col:
+            df_ac = df_period[df_period["Aircraft_Type"] == ac_type]
+            if df_ac.empty:
+                st.info(f"{ac_type} のデータが選択期間にありません。")
+                continue
 
-    # 縦棒グラフ（ATAを横軸、件数を縦軸）
-    fig_bar = go.Figure(go.Bar(
-        x=ata_counts["ATA_SubChapter"],
-        y=ata_counts["Count"],
-        marker_color="steelblue",
-        text=ata_counts["Count"],
-        textposition="outside"
-    ))
+            # ATA SubChapter別に件数を集計して上位50
+            ata_counts = (
+                df_ac.groupby("ATA_SubChapter")
+                .size()
+                .reset_index(name="Count")
+                .sort_values("Count", ascending=False)
+                .head(50)
+            )
 
-    fig_bar.update_layout(
-        title=f"イレギュラー件数（ATA別・上位50位）  {start_date} 〜 {end_date}",
-        xaxis_title="ATA SubChapter",
-        yaxis_title="件数",
-        xaxis=dict(
-            type="category",
-            categoryorder="array",
-            categoryarray=categories,
-            tickangle=-45
-        ),
-        bargap=0.2,
-        margin=dict(t=60, b=120, l=50, r=20),
-        height=min(max(400, len(categories) * 30), 1200)
-    )
+            # 表示順（降順）をそのまま軸順序に使う
+            ata_counts["ATA_SubChapter"] = ata_counts["ATA_SubChapter"].astype(str)
+            categories = ata_counts["ATA_SubChapter"].tolist()
 
-    st.plotly_chart(fig_bar, use_container_width=True)
+            # 縦棒グラフ（ATAを横軸、件数を縦軸）
+            fig_bar = go.Figure(go.Bar(
+                x=ata_counts["ATA_SubChapter"],
+                y=ata_counts["Count"],
+                marker_color="steelblue",
+                text=ata_counts["Count"],
+                textposition="outside"
+            ))
+
+            fig_bar.update_layout(
+                title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date}",
+                xaxis_title="ATA SubChapter",
+                yaxis_title="件数",
+                xaxis=dict(
+                    type="category",
+                    categoryorder="array",
+                    categoryarray=categories,
+                    tickangle=-45
+                ),
+                bargap=0.2,
+                margin=dict(t=60, b=120, l=50, r=20),
+                height=min(max(400, len(categories) * 30), 1200)
+            )
+
+            st.plotly_chart(fig_bar, use_container_width=True)
 
 
 # ================================
@@ -1099,6 +1109,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
