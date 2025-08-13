@@ -6,8 +6,6 @@ from datetime import datetime
 from pandas.tseries.offsets import DateOffset
 import time
 import re
-import numpy as np
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 
 st.set_page_config(page_title="A350 Dashboard with COA POST Count", layout="wide")
@@ -40,12 +38,14 @@ def load_defect_data():
 
 @st.cache_data
 def load_irregular_data():
+    # データ存在行をすべて読み込む（空白行含む）
     df_ir = pd.read_excel(
         "AIBTYO DLI.xlsx",
         sheet_name="EVENTS",
-        skiprows=2,
+        skiprows=2,  # 3行目から読み込み（header=2と同じ効果）
         usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,W,Y"
     )
+
     df_ir.columns = [
         "FLT_Number", "Date", "Tail", "Branch",
         "Delay_Flag", "Delay_Time",
@@ -53,17 +53,30 @@ def load_irregular_data():
         "Diversion_Flag", "EngShutDown_Flag", "Description", "Work_Performed",
         "ATA_SubChapter","Delay_Code", "Total_Maintenance_DownTime"
     ]
+
+    # Date列を日付型に変換
     df_ir["Date"] = pd.to_datetime(df_ir["Date"], format="%d-%b-%Y", errors="coerce")
+
+    # 空行削除（TailやDateがない行は不要）
     df_ir.dropna(subset=["Date", "Tail"], how="any", inplace=True)
+
+    # YearMonth列作成
     df_ir["YearMonth"] = df_ir["Date"].dt.to_period("M").astype(str)
+
+    # Aircraft_Type 判定
     df_ir["Aircraft_Type"] = df_ir["Tail"].apply(lambda x:
         "A350-900" if x in [f"JA{str(i).zfill(2)}XJ" for i in range(1, 17)] else (
         "A350-1000" if x in [f"JA{str(i).zfill(2)}WJ" for i in range(1, 11)] else "その他")
     )
+
     return df_ir
+
+
 
 df = load_defect_data()
 df_irregular = load_irregular_data()
+
+
 
 # -------------------------------
 # 関数
@@ -1143,6 +1156,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
