@@ -448,13 +448,6 @@ max_date = df_irregular["Date"].max().date()
 # -------------------------------
 st.subheader("イレギュラー件数（ATA別・上位50位） 機種別 + 比率")
 
-# 表示モード選択
-display_mode = st.radio(
-    "表示モードを選択してください",
-    ["Count", "OI rate (100 TO)"],
-    horizontal=True
-)
-
 # 期間選択
 min_date = df_irregular["Date"].min().date()
 max_date = df_irregular["Date"].max().date()
@@ -467,8 +460,13 @@ start_date, end_date = st.slider(
     key="slider_ata_chart"
 )
 
-# フィルタ用チェックボックス
-exclude_seat = st.checkbox("Seat/IFE/Wi-Fi以外のみ表示（2500, 2520, 2528, 2521, 4400, 442X, 443X を除外）")
+# Count / OI Rate 切替
+display_mode = st.radio("表示形式を選択してください", ["Count", "OI Rate (100 TO)"])
+
+# Seat/IFE/Wi-Fi除外チェック
+exclude_seat = st.checkbox(
+    "Seat/IFE/Wi-Fi以外のみ表示（2500, 2520, 2528, 2521, 4400, 442X, 443X を除外）"
+)
 
 # 選択期間でフィルタ
 df_period = df_irregular[
@@ -476,20 +474,11 @@ df_period = df_irregular[
     (df_irregular["Date"].dt.date <= end_date)
 ].copy()
 
-# Seat/IFE/Wi-Fi 除外処理
+# Seat/IFE/Wi-Fi除外処理
 if exclude_seat:
-    import re
-    exclude_patterns = [
-        r"2500", r"2520", r"2528", r"2521", r"4400", r"442\d", r"443\d"
-    ]
+    exclude_patterns = [r"2500", r"2520", r"2528", r"2521", r"4400", r"442\d", r"443\d"]
     pattern = re.compile("|".join(exclude_patterns))
     df_period = df_period[~df_period["ATA_SubChapter"].astype(str).str.match(pattern)]
-
-# 選択期間のFCデータ
-df_fc_period = df_fc[
-    (pd.to_datetime(df_irregular["Date"]).dt.date >= start_date) &
-    (pd.to_datetime(df_fc["Date"]).dt.date <= end_date)
-].copy()
 
 if df_period.empty:
     st.info("選択期間のデータがありません。期間を変更してください。")
@@ -503,39 +492,32 @@ else:
                 st.info(f"{ac_type} のデータが選択期間にありません。")
                 continue
 
-            # ATA SubChapter別に件数を集計して上位50
-            ata_counts = (
-                df_ac.groupby("ATA_SubChapter")
-                .size()
-                .reset_index(name="Count")
-            )
-
-            if display_mode == "OI rate (100 TO)":
-                # 該当機種の総FC
-                total_fc = df_fc_period[df_fc_period["Aircraft_Type"] == ac_type]["FC"].sum()
-                if total_fc > 0:
-                    ata_counts["Count"] = ata_counts["Count"] / total_fc * 100
-                else:
-                    ata_counts["Count"] = 0
-
-            ata_counts = ata_counts.sort_values("Count", ascending=False).head(50)
+            # ATA SubChapter別集計
+            ata_counts = df_ac.groupby("ATA_SubChapter").size().reset_index(name="Count").sort_values("Count", ascending=False).head(50)
             ata_counts["ATA_SubChapter"] = ata_counts["ATA_SubChapter"].astype(str)
             categories = ata_counts["ATA_SubChapter"].tolist()
+
+            # OI Rate計算
+            if display_mode == "OI Rate (100 TO)":
+                fc_sum = df_fc[df_fc["Aircraft_Type"] == ac_type]["FC"].sum()
+                ata_counts["Count"] = np.where(fc_sum > 0, (ata_counts["Count"] / fc_sum) * 100, 0)
+                yaxis_title = "OI Rate (100 TO)"
+            else:
+                yaxis_title = "件数"
 
             # 縦棒グラフ
             fig_bar = go.Figure(go.Bar(
                 x=ata_counts["ATA_SubChapter"],
                 y=ata_counts["Count"],
                 marker_color="steelblue",
-                text=ata_counts["Count"].round(2) if display_mode != "Count" else ata_counts["Count"],
+                text=ata_counts["Count"].round(2) if display_mode=="OI Rate (100 TO)" else ata_counts["Count"],
                 textposition="outside"
             ))
 
-            y_title = "件数" if display_mode == "Count" else "OI rate (100 TO)"
             fig_bar.update_layout(
-                title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date} [{display_mode}]",
+                title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date}",
                 xaxis_title="ATA SubChapter",
-                yaxis_title=y_title,
+                yaxis_title=yaxis_title,
                 xaxis=dict(
                     type="category",
                     categoryorder="array",
@@ -549,12 +531,12 @@ else:
 
             st.plotly_chart(fig_bar, use_container_width=True)
 
-            # 円グラフ（比率表示）
+            # 円グラフ
             fig_pie = px.pie(
                 ata_counts,
                 names="ATA_SubChapter",
                 values="Count",
-                title=f"サブチャプター別 不具合比率 - {ac_type} [{display_mode}]",
+                title=f"サブチャプター別 不具合比率 - {ac_type}",
                 hole=0.3
             )
             fig_pie.update_traces(textposition="inside", textinfo="percent+label")
@@ -1153,6 +1135,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
