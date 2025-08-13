@@ -446,7 +446,10 @@ max_date = df_irregular["Date"].max().date()
 # ================================
 # 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） ※Operational Reliability内
 # ================================
-st.subheader("Chart")
+# ================================
+# 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ
+# ================================
+st.subheader("イレギュラー件数（ATA別・上位50位） 機種別 + 比率")
 
 # 期間選択（スライダー） - key は既存の "slider_ata_chart" を維持
 min_date = df_irregular["Date"].min().date()
@@ -487,11 +490,10 @@ else:
                 .head(50)
             )
 
-            # 表示順（降順）をそのまま軸順序に使う
             ata_counts["ATA_SubChapter"] = ata_counts["ATA_SubChapter"].astype(str)
             categories = ata_counts["ATA_SubChapter"].tolist()
 
-            # 縦棒グラフ（ATAを横軸、件数を縦軸）
+            # 縦棒グラフ
             fig_bar = go.Figure(go.Bar(
                 x=ata_counts["ATA_SubChapter"],
                 y=ata_counts["Count"],
@@ -516,6 +518,18 @@ else:
             )
 
             st.plotly_chart(fig_bar, use_container_width=True)
+
+            # 円グラフ（比率表示）
+            fig_pie = px.pie(
+                ata_counts,
+                names="ATA_SubChapter",
+                values="Count",
+                title=f"サブチャプター別 不具合比率 - {ac_type}",
+                hole=0.3
+            )
+            fig_pie.update_traces(textposition="inside", textinfo="percent+label")
+            st.plotly_chart(fig_pie, use_container_width=True)
+
 
 
 # ================================
@@ -1109,6 +1123,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
