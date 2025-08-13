@@ -1,7 +1,3 @@
-以下のコードに対して、Operational Reliability項目の「Data」の表を、イレギュラー件数（ATA別・上位50位） 機種別 + 比率項目の円グラフの下に表示するように変更して。さらに「Data」の表に関して、ATA_Subchapterでフィルタリングをできるようにしてください。例えば、ATA_Subchapterの「2500」のみを選択して表示できるようにするなどです。
-
-
-
 import streamlit as st 
 import pandas as pd
 import plotly.express as px
@@ -1140,6 +1136,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
