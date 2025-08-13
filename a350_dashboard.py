@@ -411,40 +411,6 @@ else:
     st.plotly_chart(fig_rel_type, use_container_width=True)
 
 
-# --- Reliability グラフの下にイレギュラー内容の表を追加 ---
-st.subheader("✈Data")
-
-# 表示列
-irreg_display_cols = [
-    "Date", "FLT_Number", "Tail", "Branch",
-    "Delay_Code", "Delay_Time",
-    "ATA_SubChapter", "Description", "Work_Performed"
-]
-
-# 表用に日付フォーマットを変更（YYYY-MM-DDのみ）
-df_irregular_display = df_irregular.copy()
-df_irregular_display["Date"] = df_irregular_display["Date"].dt.strftime("%Y-%m-%d")
-
-# 表示（インデックス削除）
-df_irregular_sorted = df_irregular_display[irreg_display_cols] \
-    .sort_values("Date", ascending=False) \
-    .reset_index(drop=True)
-
-# 表示（高さ調整のみ）
-st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
-
-
-# データ範囲を取得
-min_date = df_irregular["Date"].min().date()
-max_date = df_irregular["Date"].max().date()
-
-# 選択期間のデータを抽出
-#start_date, end_date = date_range
-#df_irreg_period = df_irregular[
-    #(df_irregular["Date"].dt.date >= start_date) &
-    #(df_irregular["Date"].dt.date <= end_date)
-#]
-
 # -------------------------------
 # 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ + フィルタ
 # -------------------------------
@@ -747,6 +713,38 @@ for aircraft, col in zip(['A350-900', 'A350-1000'], [col_left, col_right]):
             margin=dict(t=30)
         )
         st.plotly_chart(fig_rate, use_container_width=True)
+
+
+# --- Reliability グラフの下にイレギュラー内容の表を追加 ---
+st.subheader("✈Data")
+
+# 表示列
+irreg_display_cols = [
+    "Date", "FLT_Number", "Tail", "Branch",
+    "Delay_Code", "Delay_Time",
+    "ATA_SubChapter", "Description", "Work_Performed"
+]
+
+# 表用に日付フォーマットを変更（YYYY-MM-DDのみ）
+df_irregular_display = df_irregular.copy()
+df_irregular_display["Date"] = df_irregular_display["Date"].dt.strftime("%Y-%m-%d")
+
+# ATA_SubChapter 用のフィルター選択
+ata_options = ["All"] + sorted(df_irregular_display["ATA_SubChapter"].astype(str).unique().tolist())
+selected_ata = st.selectbox("表示する ATA_SubChapter を選択してください", ata_options)
+
+# 選択に応じてフィルタリング
+if selected_ata != "All":
+    df_irregular_display = df_irregular_display[df_irregular_display["ATA_SubChapter"].astype(str) == selected_ata]
+
+# 表示（インデックス削除）
+df_irregular_sorted = df_irregular_display[irreg_display_cols] \
+    .sort_values("Date", ascending=False) \
+    .reset_index(drop=True)
+
+# 表示（高さ調整のみ）
+st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
+
 
 
 
@@ -1136,6 +1134,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
