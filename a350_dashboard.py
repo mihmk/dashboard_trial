@@ -1,3 +1,7 @@
+以下のコードに対して、Operational Reliability項目の「Data」の表を、イレギュラー件数（ATA別・上位50位） 機種別 + 比率項目の円グラフの下に表示するように変更して。さらに「Data」の表に関して、ATA_Subchapterでフィルタリングをできるようにしてください。例えば、ATA_Subchapterの「2500」のみを選択して表示できるようにするなどです。
+
+
+
 import streamlit as st 
 import pandas as pd
 import plotly.express as px
@@ -75,8 +79,6 @@ def load_irregular_data():
 
 df = load_defect_data()
 df_irregular = load_irregular_data()
-
-
 
 # -------------------------------
 # 関数
@@ -448,7 +450,7 @@ max_date = df_irregular["Date"].max().date()
 #]
 
 # -------------------------------
-# 📊 イレギュラー件数（ATA別・上位50位） 機種別 + 円グラフ + フィルタ
+# 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ + フィルタ
 # -------------------------------
 st.subheader("イレギュラー件数（ATA別・上位50位） 機種別 + 比率")
 
@@ -503,7 +505,7 @@ else:
 
             # OI Rate計算
             if display_mode == "OI Rate (100 TO)":
-                fc_sum = df_fc[df_fc["Aircraft_Type"] == ac_type]["FC"].sum() if 'df_fc' in globals() else 1
+                fc_sum = df_fc[df_fc["Aircraft_Type"] == ac_type]["FC"].sum()
                 ata_counts["Count"] = np.where(fc_sum > 0, (ata_counts["Count"] / fc_sum) * 100, 0)
                 yaxis_title = "OI Rate (100 TO)"
             else:
@@ -517,15 +519,22 @@ else:
                 text=ata_counts["Count"].round(2) if display_mode=="OI Rate (100 TO)" else ata_counts["Count"],
                 textposition="outside"
             ))
+
             fig_bar.update_layout(
                 title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date}",
                 xaxis_title="ATA SubChapter",
                 yaxis_title=yaxis_title,
-                xaxis=dict(type="category", categoryorder="array", categoryarray=categories, tickangle=-45),
+                xaxis=dict(
+                    type="category",
+                    categoryorder="array",
+                    categoryarray=categories,
+                    tickangle=-45
+                ),
                 bargap=0.2,
                 margin=dict(t=60, b=120, l=50, r=20),
                 height=min(max(400, len(categories) * 30), 1200)
             )
+
             st.plotly_chart(fig_bar, use_container_width=True)
 
             # 円グラフ
@@ -538,32 +547,7 @@ else:
             )
             fig_pie.update_traces(textposition="inside", textinfo="percent+label")
             st.plotly_chart(fig_pie, use_container_width=True)
-
-            # -----------------------------
-            # 円グラフ下に Data 表（AgGrid）
-            # -----------------------------
-            st.markdown(f"#### {ac_type} Data")
-
-            display_cols = ["Date", "FLT_Number", "Tail", "Branch", "Delay_Code", "Delay_Time",
-                            "ATA_SubChapter", "Description", "Work_Performed"]
-
-            df_ac_display = df_ac.copy()
-            df_ac_display["Date"] = df_ac_display["Date"].dt.strftime("%Y-%m-%d")
-
-            # AgGrid 設定
-            gb = GridOptionsBuilder.from_dataframe(df_ac_display[display_cols])
-            gb.configure_default_column(filter=True, sortable=True, resizable=True)
-            gb.configure_grid_options(domLayout='normal')
-            grid_options = gb.build()
-
-            AgGrid(
-                df_ac_display[display_cols],
-                gridOptions=grid_options,
-                height=400,
-                width='100%',
-                update_mode=GridUpdateMode.NO_UPDATE,
-                fit_columns_on_grid_load=True
-            )
+            
             
 # ================================
 # ✈ FLT SQ / Pilot Report
@@ -1156,6 +1140,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
