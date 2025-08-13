@@ -1,6 +1,6 @@
 streamlit
 pandas
 plotly
-
 openpyxl
 st-aggrid
+
