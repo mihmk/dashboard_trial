@@ -487,7 +487,7 @@ if exclude_seat:
 
 # 選択期間のFCデータ
 df_fc_period = df_fc[
-    (pd.to_datetime(df_fc["Date"]).dt.date >= start_date) &
+    (pd.to_datetime(df_irregular["Date"]).dt.date >= start_date) &
     (pd.to_datetime(df_fc["Date"]).dt.date <= end_date)
 ].copy()
 
@@ -1153,6 +1153,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
