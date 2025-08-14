@@ -542,6 +542,48 @@ df_irregular_sorted = df_irregular_display[irreg_display_cols] \
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 
 
+
+# ==== Data 表の下に追加 ====
+selected_ata = st.session_state.get("selected_ata", None)  # チェックボックスで選択したATAを取得
+if selected_ata:
+    st.subheader(f"📊 ATA {selected_ata} 月別推移（A350-900 / A350-1000）")
+
+    # 切替ボタン
+    metric_choice = st.radio(
+        "表示する指標を選択してください",
+        ("Count", "OI Rate (100TO)"),
+        horizontal=True
+    )
+
+    # データ抽出
+    df_selected_ata = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata].copy()
+    df_selected_ata["Month"] = pd.to_datetime(df_selected_ata["Date"]).dt.to_period("M").dt.to_timestamp()
+
+    # 機種別集計
+    if metric_choice == "Count":
+        df_plot = df_selected_ata.groupby(["Month", "Aircraft_Type"]).size().reset_index(name="Value")
+        yaxis_title = "Count"
+    else:
+        # OI Rate = (件数 / TO数) * 100
+        df_plot = df_selected_ata.groupby(["Month", "Aircraft_Type"]).agg({"OI_Rate_100TO": "mean"}).reset_index()
+        df_plot.rename(columns={"OI_Rate_100TO": "Value"}, inplace=True)
+        yaxis_title = "OI Rate (100TO)"
+
+    # グラフ作成
+    fig = px.bar(
+        df_plot,
+        x="Month",
+        y="Value",
+        color="Aircraft_Type",
+        barmode="group",
+        title=f"ATA {selected_ata} - {metric_choice} 推移",
+        labels={"Value": yaxis_title, "Month": "Month"}
+    )
+    fig.update_layout(xaxis=dict(dtick="M1", tickformat="%Y-%m"), yaxis_title=yaxis_title)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+
 # --- Data 表の下に ATA 別グラフを追加（Count 固定） ---
 st.subheader("📊 Selected ATA Monthly Count")
 
@@ -1184,6 +1226,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
