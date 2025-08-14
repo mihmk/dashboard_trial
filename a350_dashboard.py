@@ -748,10 +748,14 @@ else:
 # --- Selected ATA Monthly Count 下に Tail別積み上げグラフに続き、イレギュラー表を追加 ---
 st.subheader(f"📋 {selected_ata_subchapter} のイレギュラー詳細（Tail別）")
 
-# 表示したい列（✈Data と同じ）
-irreg_display_cols = [
-    "Date", "FLT_Number", "Tail", "Branch",
-    "Delay_Code", "Delay_Time", "ATA_SubChapter", "MOD_Description"
+# 表示したい列（不要列削除・追加）
+irreg_display_cols_sub = [
+    "Date",
+    "Tail",
+    "Branch",
+    "Delay_Time",
+    "Description",
+    "Work_Performed"
 ]
 
 # 左右カラムに A350-900 / A350-1000 表を表示
@@ -768,7 +772,7 @@ for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
             st.info(f"{ac_type} に該当するデータはありません。")
         else:
             # 存在する列だけ抽出
-            existing_cols = [c for c in irreg_display_cols if c in df_table.columns]
+            existing_cols = [c for c in irreg_display_cols_sub if c in df_table.columns]
             df_table_display = df_table[existing_cols].copy()
 
             # 日付列を整形（存在する場合のみ）
@@ -778,6 +782,7 @@ for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
                 ).dt.strftime("%Y-%m-%d")
             
             st.dataframe(df_table_display, use_container_width=True)
+
 
 
 
@@ -1373,6 +1378,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
