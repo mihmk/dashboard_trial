@@ -636,12 +636,13 @@ else:
 # ==== Data 表の下：Data表で選択した ATA_Chapter に連動した月別推移（Count / OI Rate） ====
 st.subheader("📊 Selected ATA Monthly Count")
 
-metric_choice_data = st.radio(
+metric_choice_data_selected_ata = st.radio(
     "表示指標を選択してください",
     ("Count", "OI Rate (100 TO)"),
     horizontal=True,
-    key="metric_choice_data_section"
+    key="metric_choice_data_selected_ata_section"
 )
+
 
 # ベースデータ準備
 df_ir_base = df_irregular.copy()
@@ -1276,6 +1277,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
