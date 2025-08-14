@@ -586,9 +586,16 @@ if selected_ata_chapter != "All":
 # --- df_irregular 読み込み（既存処理を流用） ---
 df_irregular = load_irregular_data()
 
-# --- 安全に ATA サブチャプター一覧を作成 ---
+# --- 安全に ATA サブチャプター一覧を作成（文字列・4桁固定） ---
 if "ATA_SubChapter" in df_irregular.columns and not df_irregular.empty:
-    ata_list = sorted(df_irregular["ATA_SubChapter"].dropna().unique())
+    ata_list = sorted(
+        df_irregular["ATA_SubChapter"]
+        .dropna()
+        .astype(int)         # 念のため整数化
+        .astype(str)         # 文字列化
+        .str.zfill(4)        # 4桁ゼロ埋め
+        .unique()
+    )
 else:
     ata_list = []
 
@@ -596,29 +603,41 @@ else:
 if ata_list:
     selected_ata = st.selectbox("📌 ATAサブチャプターを選択", ata_list, key="ata_selectbox")
 
-    # --- 積み上げグラフ（既存処理を流用） ---
-    fig = px.bar(
-        df_irregular[df_irregular["ATA_SubChapter"] == selected_ata],
-        x="Date",
-        y="Count",
-        color="Branch",
-        title=f"ATAサブチャプター {selected_ata} の積み上げ式グラフ"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    # --- 選択サブチャプターのデータ抽出 ---
+    df_selected_irreg = df_irregular.copy()
+    df_selected_irreg["ATA_SubChapter"] = df_selected_irreg["ATA_SubChapter"].astype(int).astype(str).str.zfill(4)
+    df_selected_irreg = df_selected_irreg[df_selected_irreg["ATA_SubChapter"] == selected_ata]
+
+    # --- 積み上げグラフ ---
+    if not df_selected_irreg.empty:
+        # Branchごとに件数集計
+        df_plot = df_selected_irreg.groupby(["Date", "Branch"]).size().reset_index(name="Count")
+        fig = px.bar(
+            df_plot,
+            x="Date",
+            y="Count",
+            color="Branch",
+            title=f"ATAサブチャプター {selected_ata} の積み上げ式グラフ"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info(f"ATAサブチャプター {selected_ata} のデータはありません。")
 
     # --- 選択されたサブチャプターのイレギュラー表 ---
     st.subheader(f"📄 ATA {selected_ata} のイレギュラー一覧")
     irreg_display_cols = [
         "Date", "FLT_Number", "Tail", "Branch",
         "Delay_Code", "Delay_Time",
-        "ATA_SubChapter", "Defect", "Action"
+        "ATA_SubChapter", "Description", "Work_Performed"
     ]
-    df_selected_irreg = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata]
-    df_selected_irreg = df_selected_irreg[irreg_display_cols].sort_values("Date", ascending=False)
-    st.dataframe(df_selected_irreg, use_container_width=True)
+    if not df_selected_irreg.empty:
+        df_selected_irreg_display = df_selected_irreg[irreg_display_cols].copy()
+        df_selected_irreg_display["Date"] = df_selected_irreg_display["Date"].dt.strftime("%Y-%m-%d")
+        st.dataframe(df_selected_irreg_display.sort_values("Date", ascending=False), use_container_width=True)
+    else:
+        st.info("表示するデータがありません。")
 else:
     st.warning("⚠ イレギュラーデータが存在しないか、'ATA_SubChapter' 列がありません。")
-
 
 
 
@@ -1213,6 +1232,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
