@@ -543,44 +543,84 @@ st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 
 
 
-# ==== Data 表の下に追加 ====
-selected_ata = st.session_state.get("selected_ata", None)  # チェックボックスで選択したATAを取得
-if selected_ata:
-    st.subheader(f"📊 ATA {selected_ata} 月別推移（A350-900 / A350-1000）")
+# ==== Data 表の下：Data表で選択した ATA_Chapter に連動した月別推移（Count / OI Rate） ====
+st.subheader("📊 Selected ATA Monthly (Data表の選択に連動)")
 
-    # 切替ボタン
-    metric_choice = st.radio(
-        "表示する指標を選択してください",
-        ("Count", "OI Rate (100TO)"),
-        horizontal=True
-    )
+# Data表のセクションで作った選択値をそのまま使う（selected_ata_chapter）
+# 例：selected_ata_chapter は "All" または "00" "21" ... の2桁文字列
+metric_choice_data = st.radio(
+    "表示指標を選択してください",
+    ("Count", "OI Rate (100 TO)"),
+    horizontal=True,
+    key="metric_choice_data_section"
+)
 
-    # データ抽出
-    df_selected_ata = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata].copy()
-    df_selected_ata["Month"] = pd.to_datetime(df_selected_ata["Date"]).dt.to_period("M").dt.to_timestamp()
+# ベースデータ準備（ATA_Chapter を2桁文字列で付与 / 月を日時で用意）
+df_ir_base = df_irregular.copy()
+df_ir_base["ATA_Chapter"] = df_ir_base["ATA_SubChapter"].astype(str).str[:2]
+df_ir_base["Month"] = pd.to_datetime(df_ir_base["YearMonth"], format="%Y-%m", errors="coerce")
 
-    # 機種別集計
-    if metric_choice == "Count":
-        df_plot = df_selected_ata.groupby(["Month", "Aircraft_Type"]).size().reset_index(name="Value")
-        yaxis_title = "Count"
-    else:
-        # OI Rate = (件数 / TO数) * 100
-        df_plot = df_selected_ata.groupby(["Month", "Aircraft_Type"]).agg({"OI_Rate_100TO": "mean"}).reset_index()
-        df_plot.rename(columns={"OI_Rate_100TO": "Value"}, inplace=True)
-        yaxis_title = "OI Rate (100TO)"
+# 「Data」表の選択に応じてフィルタ（All の場合は全て）
+if selected_ata_chapter != "All":
+    df_ir_base = df_ir_base[df_ir_base["ATA_Chapter"] == selected_ata_chapter]
 
-    # グラフ作成
-    fig = px.bar(
-        df_plot,
-        x="Month",
-        y="Value",
-        color="Aircraft_Type",
-        barmode="group",
-        title=f"ATA {selected_ata} - {metric_choice} 推移",
-        labels={"Value": yaxis_title, "Month": "Month"}
-    )
-    fig.update_layout(xaxis=dict(dtick="M1", tickformat="%Y-%m"), yaxis_title=yaxis_title)
-    st.plotly_chart(fig, use_container_width=True)
+# 直近12か月の範囲を決定
+if df_ir_base["Month"].dropna().empty:
+    st.info("選択された条件に該当するデータがありません。")
+else:
+    max_month = df_ir_base["Month"].dropna().max()
+    min_month = (max_month - DateOffset(months=11)).to_period("M").to_timestamp()
+    months_range = pd.period_range(min_month, max_month, freq="M").to_timestamp()
+
+    # 月別・機種別 Count を作成（欠月は 0 で埋める）
+    def monthly_counts_for(ac_type: str) -> pd.DataFrame:
+        s = (df_ir_base[df_ir_base["Aircraft_Type"] == ac_type]
+             .groupby("Month").size())
+        s = s.reindex(months_range, fill_value=0)
+        return s.reset_index().rename(columns={"index": "Month", 0: "Count"})
+
+    # FC（月別・機種別）を用意（OI Rate 用）
+    df_fc_base = df_fc.copy()
+    df_fc_base["Month"] = pd.to_datetime(df_fc_base["YearMonth"], format="%Y-%m", errors="coerce")
+    def monthly_fc_for(ac_type: str) -> pd.DataFrame:
+        s = (df_fc_base[df_fc_base["Aircraft_Type"] == ac_type]
+             .groupby("Month")["FC"].sum())
+        s = s.reindex(months_range, fill_value=0)
+        return s.reset_index().rename(columns={"index": "Month", "FC": "FC"})
+
+    col_900, col_1000 = st.columns(2)
+    for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
+        with col:
+            df_cnt = monthly_counts_for(ac_type)
+
+            if metric_choice_data == "OI Rate (100 TO)":
+                df_fc_m = monthly_fc_for(ac_type)
+                df_m = pd.merge(df_cnt, df_fc_m, on="Month", how="left")
+                df_m["Value"] = np.where(df_m["FC"] > 0, (df_m["Count"] / df_m["FC"]) * 100, 0.0)
+                y_vals = df_m["Value"]
+                y_title = "OI Rate (100 TO)"
+                text_vals = df_m["Value"].round(2).astype(str)
+            else:
+                y_vals = df_cnt["Count"]
+                y_title = "件数"
+                text_vals = df_cnt["Count"].astype(str)
+
+            fig = go.Figure(go.Bar(
+                x=months_range.strftime("%Y-%m"),
+                y=y_vals,
+                text=text_vals,
+                textposition="outside",
+                marker_color="steelblue"
+            ))
+            ata_label = selected_ata_chapter if selected_ata_chapter != "All" else "All"
+            fig.update_layout(
+                title=f"{ac_type} - ATA {ata_label} 月別 {metric_choice_data}",
+                xaxis_title="年月",
+                yaxis_title=y_title,
+                xaxis=dict(type="category"),
+                margin=dict(t=60, b=100, l=50, r=20)
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 
 
@@ -1226,6 +1266,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
