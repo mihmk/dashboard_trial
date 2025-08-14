@@ -633,54 +633,55 @@ else:
             st.plotly_chart(fig, use_container_width=True)
 
 
-# --- Data 表の下に ATA 別グラフを追加（Count 固定） ---
+# ==== Data 表の下：Data表で選択した ATA_Chapter に連動した月別推移（Count / OI Rate） ====
 st.subheader("📊 Selected ATA Monthly Count")
 
-# ATA_SubChapter を文字列に統一してからソート
-ata_options = sorted(df_irregular["ATA_SubChapter"].dropna().astype(str).unique())
-
-selected_ata_subchapter = st.selectbox(
-    "表示する ATA SubChapter を選択してください",
-    ata_options
+metric_choice_data = st.radio(
+    "表示指標を選択してください",
+    ("Count", "OI Rate (100 TO)"),
+    horizontal=True,
+    key="metric_choice_data_section"
 )
 
-# 選択 ATA のデータ抽出
-df_selected_ata = df_irregular[df_irregular["ATA_SubChapter"].astype(str) == selected_ata_subchapter].copy()
+# ベースデータ準備
+df_ir_base = df_irregular.copy()
+df_ir_base["ATA_Chapter"] = df_ir_base["ATA_SubChapter"].astype(str).str[:2]
+df_ir_base["Month"] = pd.to_datetime(df_ir_base["YearMonth"], format="%Y-%m", errors="coerce")
 
-if df_selected_ata.empty:
-    st.warning(f"{selected_ata_subchapter} のデータは存在しません。")
+# --- 新規追加部分：選択された ATA_Chapter の中で件数最大のサブチャプターを取得 ---
+if selected_ata_chapter != "All":
+    df_filtered = df_ir_base[df_ir_base["ATA_Chapter"] == selected_ata_chapter]
 else:
-    # 月別・機種別集計
-    df_monthly = (
-        df_selected_ata.groupby(["YearMonth", "Aircraft_Type"])
+    df_filtered = df_ir_base.copy()
+
+if not df_filtered.empty:
+    # サブチャプター別件数集計
+    sub_counts = (
+        df_filtered.groupby("ATA_SubChapter")
         .size()
         .reset_index(name="Count")
+        .sort_values("Count", ascending=False)
     )
 
-    # 機種別グラフ（A350-900 / A350-1000）
-    col_900, col_1000 = st.columns(2)
-    for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
-        with col:
-            df_plot = df_monthly[df_monthly["Aircraft_Type"] == ac_type].copy()
-            if df_plot.empty:
-                st.info(f"{ac_type} のデータは存在しません。")
-                continue
-            df_plot = df_plot.sort_values("YearMonth")
-            fig_bar = go.Figure(go.Bar(
-                x=df_plot["YearMonth"],
-                y=df_plot["Count"],
-                text=df_plot["Count"],
-                textposition="outside",
-                marker_color="steelblue"
-            ))
-            fig_bar.update_layout(
-                title=f"{ac_type} - {selected_ata_subchapter} 月別 Count",
-                xaxis_title="年月",
-                yaxis_title="件数",
-                xaxis=dict(type="category"),
-                margin=dict(t=60, b=120)
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+    # 最大件数のサブチャプター
+    default_sub = sub_counts.iloc[0]["ATA_SubChapter"]
+
+    # サブチャプター一覧
+    sub_options = sub_counts["ATA_SubChapter"].tolist()
+
+    # --- 検索窓（プルダウン） ---
+    selected_subchapter = st.selectbox(
+        "表示する ATA SubChapter を選択してください",
+        options=sub_options,
+        index=sub_options.index(default_sub),  # 最大件数のものをデフォルト
+        key="selected_subchapter"
+    )
+
+    # フィルタ適用
+    df_ir_base = df_filtered[df_filtered["ATA_SubChapter"] == selected_subchapter]
+else:
+    st.info("選択された条件に該当するデータがありません。")
+    df_ir_base = df_filtered
 
 
 
@@ -1275,6 +1276,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
