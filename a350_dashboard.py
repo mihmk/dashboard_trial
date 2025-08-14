@@ -542,6 +542,69 @@ df_irregular_sorted = df_irregular_display[irreg_display_cols] \
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 
 
+# --- Data 表の下に ATA 別グラフを追加 ---
+st.subheader("📊 Selected ATA Analysis")
+
+# Data 表上で選択した ATA_SubChapter を取得
+selected_ata_subchapter = st.selectbox(
+    "表示する ATA SubChapter を選択してください",
+    sorted(df_irregular["ATA_SubChapter"].dropna().unique())
+)
+
+# Count / OI Rate 切替
+display_mode = st.radio("表示形式を選択してください", ["Count", "OI Rate (100 TO)"], key="ata_count_oirate")
+
+# 選択 ATA のデータ抽出
+df_selected_ata = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata_subchapter].copy()
+if df_selected_ata.empty:
+    st.warning(f"{selected_ata_subchapter} のデータは存在しません。")
+else:
+    # 月別・機種別集計
+    df_monthly = (
+        df_selected_ata.groupby(["YearMonth", "Aircraft_Type"])
+        .size()
+        .reset_index(name="Count")
+    )
+
+    # OI Rate 計算（FC データが必要）
+    if display_mode == "OI Rate (100 TO)":
+        # FC 合計（月別・機種別）
+        df_fc_sum = df_fc.groupby(["YearMonth", "Aircraft_Type"], as_index=False)["FC"].sum()
+        df_monthly = pd.merge(df_monthly, df_fc_sum, on=["YearMonth", "Aircraft_Type"], how="left")
+        df_monthly["Count"] = np.where(df_monthly["FC"] > 0,
+                                       (df_monthly["Count"] / df_monthly["FC"]) * 100,
+                                       0)
+        yaxis_title = "OI Rate (100 TO)"
+    else:
+        yaxis_title = "件数"
+
+    # 機種別グラフ（A350-900 / A350-1000）
+    col_900, col_1000 = st.columns(2)
+    for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
+        with col:
+            df_plot = df_monthly[df_monthly["Aircraft_Type"] == ac_type].copy()
+            if df_plot.empty:
+                st.info(f"{ac_type} のデータは存在しません。")
+                continue
+            df_plot = df_plot.sort_values("YearMonth")
+            fig_bar = go.Figure(go.Bar(
+                x=df_plot["YearMonth"],
+                y=df_plot["Count"],
+                text=df_plot["Count"].round(2) if display_mode=="OI Rate (100 TO)" else df_plot["Count"],
+                textposition="outside",
+                marker_color="steelblue"
+            ))
+            fig_bar.update_layout(
+                title=f"{ac_type} - {selected_ata_subchapter} 月別 {display_mode}",
+                xaxis_title="年月",
+                yaxis_title=yaxis_title,
+                xaxis=dict(type="category"),
+                margin=dict(t=60, b=120)
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+
+
 # ================================
 # ✈ FLT SQ / Pilot Report
 # ================================
@@ -1133,6 +1196,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
