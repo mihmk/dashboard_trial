@@ -1,11 +1,12 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 from pandas.tseries.offsets import DateOffset
-import numpy as np
+import time
 import re
+
 
 st.set_page_config(page_title="A350 Dashboard with COA POST Count", layout="wide")
 
@@ -27,7 +28,7 @@ def load_defect_data():
     df.dropna(subset=['Reported_Date'], inplace=True)
     df['Reported_Date_Str'] = df['Reported_Date'].dt.strftime('%Y-%m-%d')
     df['Reported_Date_Only'] = df['Reported_Date'].dt.date
-    df['YearMonth'] = df['Reported_Date'].dt.to_period('M').astype(str)
+    df['YearMonth'] = pd.to_datetime(df['Reported_Date'], errors='coerce').dt.to_period('M').astype(str)
     df['ATA_Chapter'] = df['ATA'].astype(str).str.zfill(4).str[:2]
     df['ATA_SubChapter'] = df['ATA'].astype(str).str.zfill(4).str[:4]
     df['Aircraft_Type'] = df['Tail'].apply(lambda x:
@@ -37,12 +38,14 @@ def load_defect_data():
 
 @st.cache_data
 def load_irregular_data():
+    # データ存在行をすべて読み込む（空白行含む）
     df_ir = pd.read_excel(
         "AIBTYO DLI.xlsx",
         sheet_name="EVENTS",
-        skiprows=2,
+        skiprows=2,  # 3行目から読み込み（header=2と同じ効果）
         usecols="A,B,D,E,H,I,J,K,L,M,P,Q,S,T,V,W,Y"
     )
+
     df_ir.columns = [
         "FLT_Number", "Date", "Tail", "Branch",
         "Delay_Flag", "Delay_Time",
@@ -50,20 +53,26 @@ def load_irregular_data():
         "Diversion_Flag", "EngShutDown_Flag", "Description", "Work_Performed",
         "ATA_SubChapter","Delay_Code", "Total_Maintenance_DownTime"
     ]
+
+    # Date列を日付型に変換
     df_ir["Date"] = pd.to_datetime(df_ir["Date"], format="%d-%b-%Y", errors="coerce")
-    df_ir.dropna(subset=["Date", "Tail"], inplace=True)
+
+    # 空行削除（TailやDateがない行は不要）
+    df_ir.dropna(subset=["Date", "Tail"], how="any", inplace=True)
+
+    # YearMonth列作成
     df_ir["YearMonth"] = df_ir["Date"].dt.to_period("M").astype(str)
+
+    # Aircraft_Type 判定
     df_ir["Aircraft_Type"] = df_ir["Tail"].apply(lambda x:
         "A350-900" if x in [f"JA{str(i).zfill(2)}XJ" for i in range(1, 17)] else (
         "A350-1000" if x in [f"JA{str(i).zfill(2)}WJ" for i in range(1, 11)] else "その他")
     )
-    # ATA_SubChapter を安全に 4桁文字列化
-    df_ir["ATA_SubChapter"] = pd.to_numeric(df_ir["ATA_SubChapter"], errors="coerce")
-    df_ir = df_ir.dropna(subset=["ATA_SubChapter"])
-    df_ir["ATA_SubChapter"] = df_ir["ATA_SubChapter"].astype(int).astype(str).str.zfill(4)
+
     return df_ir
 
-# データロード
+
+
 df = load_defect_data()
 df_irregular = load_irregular_data()
 
@@ -84,7 +93,6 @@ def filter_cabin_related(df):
 # -------------------------------
 st.title("A350 Monitoring Dashboard")
 
-# --- 最新日付
 latest_date = df['Reported_Date'].max()
 one_year_ago = latest_date - DateOffset(years=1)
 df_recent_1y = df[df['Reported_Date'] >= one_year_ago]
@@ -404,122 +412,134 @@ else:
 
 
 # -------------------------------
-# 📊 月別推移グラフ（不具合 + イレギュラー）
+# 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ + フィルタ
 # -------------------------------
-st.subheader("📊 A350 Fleet Brief")
-filter_exclude_graph = st.checkbox("Seat/IFE/WiFiを除く（グラフ適用）")
+st.subheader("イレギュラー件数（ATA別・上位50位） 機種別 + 比率")
 
-def filter_cabin_related_both(df_def, df_ir):
-    exclude_patterns = ["2520", "2521", "2528"] + \
-                       [f"442{i}" for i in range(10)] + \
-                       [f"443{i}" for i in range(10)]
-    mask_def = ~df_def['ATA_SubChapter'].isin(exclude_patterns) & \
-               ~( (df_def['ATA_Chapter'] == '00') & df_def['MOD_Description'].str.lower().str.contains('seat', na=False) )
-    mask_ir = ~df_ir['ATA_SubChapter'].isin(exclude_patterns) & \
-              ~( (df_ir['ATA_SubChapter'].str[:2] == '00') & df_ir['Description'].str.lower().str.contains('seat', na=False) )
-    return df_def[mask_def], df_ir[mask_ir]
-
-if filter_exclude_graph:
-    df_recent_1y_filtered, df_irregular_filtered = filter_cabin_related_both(df_recent_1y, df_irregular)
-else:
-    df_recent_1y_filtered, df_irregular_filtered = df_recent_1y, df_irregular
-
-# 不具合（月別）
-monthly_by_type = (
-    df_recent_1y_filtered.groupby(['YearMonth', 'Aircraft_Type'])
-    .size()
-    .reset_index(name='Defect_Count')
-    .pivot(index='YearMonth', columns='Aircraft_Type', values='Defect_Count')
-    .fillna(0)
-    .reset_index()
+# 期間選択
+min_date = df_irregular["Date"].min().date()
+max_date = df_irregular["Date"].max().date()
+start_date, end_date = st.slider(
+    "期間を選択してください",
+    min_value=min_date,
+    max_value=max_date,
+    value=(min_date, max_date),
+    format="YYYY-MM-DD",
+    key="slider_ata_chart"
 )
-monthly_by_type['Defect_Total'] = monthly_by_type[['A350-900', 'A350-1000']].sum(axis=1)
-monthly_by_type = monthly_by_type.rename(columns={
-    'A350-900': 'Defect_A350-900',
-    'A350-1000': 'Defect_A350-1000'
-})
 
-# イレギュラー（月別）
-monthly_irregular = (
-    df_irregular_filtered.groupby(['YearMonth', 'Aircraft_Type'])
-    .size()
-    .reset_index(name="Irreg_Count")
-    .pivot(index="YearMonth", columns="Aircraft_Type", values="Irreg_Count")
-    .fillna(0)
-    .reset_index()
+# Count / OI Rate 切替
+display_mode = st.radio("表示形式を選択してください", ["Count", "OI Rate (100 TO)"])
+
+# Seat/IFE/Wi-Fi除外チェック
+exclude_seat = st.checkbox(
+    "Seat/IFE/Wi-Fi以外のみ表示（2500, 2520, 2528, 2521, 4400, 442X, 443X を除外）"
 )
-monthly_irregular['Irreg_Total'] = monthly_irregular[['A350-900', 'A350-1000']].sum(axis=1)
-monthly_irregular = monthly_irregular.rename(columns={
-    'A350-900': 'Irreg_A350-900',
-    'A350-1000': 'Irreg_A350-1000'
-})
 
-# マージ
-monthly_combined = pd.merge(monthly_by_type, monthly_irregular, on="YearMonth", how="outer").fillna(0)
-monthly_combined = monthly_combined.sort_values("YearMonth")
+# 選択期間でフィルタ
+df_period = df_irregular[
+    (df_irregular["Date"].dt.date >= start_date) &
+    (df_irregular["Date"].dt.date <= end_date)
+].copy()
 
-# グラフ作成
-fig_total = go.Figure()
-for col in ["Defect_A350-900", "Defect_A350-1000", "Defect_Total"]:
-    fig_total.add_trace(go.Scatter(
-        x=monthly_combined["YearMonth"],
-        y=monthly_combined[col],
-        mode="lines+markers",
-        name=f"不具合 {col.replace('Defect_', '')}",
-        yaxis="y1"
-    ))
-fig_total.add_trace(go.Bar(
-    x=monthly_combined["YearMonth"],
-    y=monthly_combined["Irreg_Total"],
-    name="イレギュラー件数",
-    yaxis="y2",
-    opacity=0.5
-))
-fig_total.update_layout(
-    title="A350全体・機種別 月別不具合件数 & イレギュラー件数",
-    xaxis=dict(type="category", title="年月"),
-    yaxis=dict(title="不具合件数", side="left"),
-    yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
-    barmode="overlay"
-)
-st.plotly_chart(fig_total, use_container_width=True)
+# Seat/IFE/Wi-Fi除外処理
+if exclude_seat:
+    exclude_patterns = [r"2500", r"2520", r"2528", r"2521", r"4400", r"442\d", r"443\d"]
+    pattern = re.compile("|".join(exclude_patterns))
+    df_period = df_period[~df_period["ATA_SubChapter"].astype(str).str.match(pattern)]
 
-# -------------------------------
-# --- ATA サブチャプター選択と積み上げグラフ + 表 ---
-# -------------------------------
-if not df_irregular.empty:
-    ata_list = df_irregular["ATA_SubChapter"].dropna().unique()
-    ata_list = sorted(ata_list)
+if df_period.empty:
+    st.info("選択期間のデータがありません。期間を変更してください。")
 else:
-    ata_list = []
+    col_900, col_1000 = st.columns(2)
 
-if ata_list:
-    selected_ata = st.selectbox("📌 ATAサブチャプターを選択", ata_list, key="ata_selectbox")
-    # 積み上げグラフ
-    df_plot = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata].copy()
-    df_plot["Count"] = 1  # 件数集計用
-    fig = px.bar(
-        df_plot,
-        x="Date",
-        y="Count",
-        color="Branch",
-        title=f"ATAサブチャプター {selected_ata} の積み上げ式グラフ"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
+        with col:
+            df_ac = df_period[df_period["Aircraft_Type"] == ac_type]
+            if df_ac.empty:
+                st.info(f"{ac_type} のデータが選択期間にありません。")
+                continue
 
-    # 表表示
-    st.subheader(f"📄 ATA {selected_ata} のイレギュラー一覧")
-    irreg_display_cols = [
-        "Date", "FLT_Number", "Tail", "Branch",
-        "Delay_Code", "Delay_Time",
-        "ATA_SubChapter", "Description", "Work_Performed"
-    ]
-    df_selected_irreg = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata]
-    df_selected_irreg = df_selected_irreg[irreg_display_cols].copy()
-    df_selected_irreg["Date"] = df_selected_irreg["Date"].dt.strftime("%Y-%m-%d")
-    st.dataframe(df_selected_irreg.sort_values("Date", ascending=False), use_container_width=True)
-else:
-    st.warning("⚠ イレギュラーデータが存在しないか、ATA_SubChapter 列がありません。")
+            # ATA SubChapter別集計
+            ata_counts = df_ac.groupby("ATA_SubChapter").size().reset_index(name="Count").sort_values("Count", ascending=False).head(50)
+            ata_counts["ATA_SubChapter"] = ata_counts["ATA_SubChapter"].astype(str)
+            categories = ata_counts["ATA_SubChapter"].tolist()
+
+            # OI Rate計算
+            if display_mode == "OI Rate (100 TO)":
+                fc_sum = df_fc[df_fc["Aircraft_Type"] == ac_type]["FC"].sum()
+                ata_counts["Count"] = np.where(fc_sum > 0, (ata_counts["Count"] / fc_sum) * 100, 0)
+                yaxis_title = "OI Rate (100 TO)"
+            else:
+                yaxis_title = "件数"
+
+            # 縦棒グラフ
+            fig_bar = go.Figure(go.Bar(
+                x=ata_counts["ATA_SubChapter"],
+                y=ata_counts["Count"],
+                marker_color="steelblue",
+                text=ata_counts["Count"].round(2) if display_mode=="OI Rate (100 TO)" else ata_counts["Count"],
+                textposition="outside"
+            ))
+
+            fig_bar.update_layout(
+                title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date}",
+                xaxis_title="ATA SubChapter",
+                yaxis_title=yaxis_title,
+                xaxis=dict(
+                    type="category",
+                    categoryorder="array",
+                    categoryarray=categories,
+                    tickangle=-45
+                ),
+                bargap=0.2,
+                margin=dict(t=60, b=120, l=50, r=20),
+                height=min(max(400, len(categories) * 30), 1200)
+            )
+
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+            # 円グラフ
+            fig_pie = px.pie(
+                ata_counts,
+                names="ATA_SubChapter",
+                values="Count",
+                title=f"サブチャプター別 不具合比率 - {ac_type}",
+                hole=0.3
+            )
+            fig_pie.update_traces(textposition="inside", textinfo="percent+label")
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+# --- Reliability グラフの下にイレギュラー内容の表を追加 ---
+st.subheader("✈Data")
+
+# 表示列
+irreg_display_cols = [
+    "Date", "FLT_Number", "Tail", "Branch",
+    "Delay_Code", "Delay_Time",
+    "ATA_SubChapter", "Description", "Work_Performed"
+]
+
+# 表用に日付フォーマットを変更（YYYY-MM-DDのみ）
+df_irregular_display = df_irregular.copy()
+df_irregular_display["Date"] = df_irregular_display["Date"].dt.strftime("%Y-%m-%d")
+
+# ATAチャプター（最初の2桁）用のフィルター選択
+df_irregular_display["ATA_Chapter"] = df_irregular_display["ATA_SubChapter"].astype(str).str[:2]
+ata_chapter_options = ["All"] + sorted(df_irregular_display["ATA_Chapter"].unique().tolist())
+selected_ata_chapter = st.selectbox("表示する ATA チャプターを選択してください", ata_chapter_options)
+
+# 選択に応じてフィルタリング
+if selected_ata_chapter != "All":
+    df_irregular_display = df_irregular_display[df_irregular_display["ATA_Chapter"] == selected_ata_chapter]
+
+# 表示（インデックス削除）
+df_irregular_sorted = df_irregular_display[irreg_display_cols] \
+    .sort_values("Date", ascending=False) \
+    .reset_index(drop=True)
+
+# 表示（高さ調整のみ）
+st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 
 
 # ================================
@@ -1113,6 +1133,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
