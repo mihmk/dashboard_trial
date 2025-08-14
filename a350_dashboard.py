@@ -633,56 +633,83 @@ else:
             st.plotly_chart(fig, use_container_width=True)
 
 
-# ==== Data 表の下：Data表で選択した ATA_Chapter に連動した月別推移（Count / OI Rate） ====
-st.subheader("📊 Selected ATA Monthly Count")
+# --- Selected ATA Monthly Count の下に月別グラフ追加 ---
+st.subheader("📊 Selected ATA Monthly Count - Monthly Trend")
 
-metric_choice_data_selected_ata = st.radio(
+# 横軸: 月ごと、縦軸: Count / OI Rate
+metric_choice_selected_ata = st.radio(
     "表示指標を選択してください",
     ("Count", "OI Rate (100 TO)"),
     horizontal=True,
-    key="metric_choice_data_selected_ata_section"
+    key="metric_choice_selected_ata"
 )
 
-
-# ベースデータ準備
-df_ir_base = df_irregular.copy()
-df_ir_base["ATA_Chapter"] = df_ir_base["ATA_SubChapter"].astype(str).str[:2]
-df_ir_base["Month"] = pd.to_datetime(df_ir_base["YearMonth"], format="%Y-%m", errors="coerce")
-
-# --- 新規追加部分：選択された ATA_Chapter の中で件数最大のサブチャプターを取得 ---
-if selected_ata_chapter != "All":
-    df_filtered = df_ir_base[df_ir_base["ATA_Chapter"] == selected_ata_chapter]
+# 選択 ATA_SubChapter データ抽出
+df_selected_ata = df_irregular[df_irregular["ATA_SubChapter"].astype(str) == selected_ata_subchapter].copy()
+if df_selected_ata.empty:
+    st.warning(f"{selected_ata_subchapter} のデータは存在しません。")
 else:
-    df_filtered = df_ir_base.copy()
+    # 直近12か月の範囲を決定
+    df_selected_ata["Month"] = pd.to_datetime(df_selected_ata["YearMonth"], format="%Y-%m", errors="coerce")
+    max_month = df_selected_ata["Month"].max()
+    min_month = (max_month - DateOffset(months=11)).to_period("M").to_timestamp()
+    months_range = pd.period_range(min_month, max_month, freq="M").to_timestamp()
 
-if not df_filtered.empty:
-    # サブチャプター別件数集計
-    sub_counts = (
-        df_filtered.groupby("ATA_SubChapter")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
+    # 月別集計関数（Count）
+    def monthly_counts_for_sub(ac_type: str) -> pd.DataFrame:
+        s = df_selected_ata[df_selected_ata["Aircraft_Type"] == ac_type].groupby("Month").size()
+        s = s.reindex(months_range, fill_value=0)
+        return s.reset_index().rename(columns={"index": "Month", 0: "Count"})
 
-    # 最大件数のサブチャプター
-    default_sub = sub_counts.iloc[0]["ATA_SubChapter"]
+    # 月別集計関数（OI Rate）
+    df_fc_base = df_fc.copy()
+    df_fc_base["Month"] = pd.to_datetime(df_fc_base["YearMonth"], format="%Y-%m", errors="coerce")
+    def monthly_fc_for_sub(ac_type: str) -> pd.DataFrame:
+        s = df_fc_base[df_fc_base["Aircraft_Type"] == ac_type].groupby("Month")["FC"].sum()
+        s = s.reindex(months_range, fill_value=0)
+        return s.reset_index().rename(columns={"index": "Month", "FC": "FC"})
 
-    # サブチャプター一覧
-    sub_options = sub_counts["ATA_SubChapter"].tolist()
+    col_900, col_1000 = st.columns(2)
+    for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
+        with col:
+            df_cnt = monthly_counts_for_sub(ac_type)
+            if metric_choice_selected_ata == "OI Rate (100 TO)":
+                df_fc_m = monthly_fc_for_sub(ac_type)
+                df_m = pd.merge(df_cnt, df_fc_m, on="Month", how="left")
+                df_m["Value"] = np.where(df_m["FC"] > 0, (df_m["Count"] / df_m["FC"]) * 100, 0.0)
+                y_vals = df_m["Value"]
+                y_title = "OI Rate (100 TO)"
+                text_vals = df_m["Value"].round(2).astype(str)
+            else:
+                y_vals = df_cnt["Count"]
+                y_title = "件数"
+                text_vals = df_cnt["Count"].astype(str)
 
-    # --- 検索窓（プルダウン） ---
-    selected_subchapter = st.selectbox(
-        "表示する ATA SubChapter を選択してください",
-        options=sub_options,
-        index=sub_options.index(default_sub),  # 最大件数のものをデフォルト
-        key="selected_subchapter"
-    )
+            # グラフ作成
+            fig = go.Figure(go.Bar(
+                x=months_range.strftime("%Y-%m"),
+                y=y_vals,
+                text=text_vals,
+                textposition="outside",
+                marker_color="steelblue",
+                cliponaxis=False
+            ))
 
-    # フィルタ適用
-    df_ir_base = df_filtered[df_filtered["ATA_SubChapter"] == selected_subchapter]
-else:
-    st.info("選択された条件に該当するデータがありません。")
-    df_ir_base = df_filtered
+            fig.update_layout(
+                title=f"{ac_type} - {selected_ata_subchapter} 月別 {metric_choice_selected_ata}",
+                xaxis_title="年月",
+                yaxis_title=y_title,
+                xaxis=dict(type="category"),
+                margin=dict(t=60, b=100, l=50, r=20)
+            )
+
+            # Y軸最小値を固定して棒が消えないようにする
+            y_max = float(y_vals.max()) if len(y_vals) else 0.0
+            y_lower = 0
+            y_upper = max(1.0, y_max * 1.2)
+            fig.update_yaxes(range=[y_lower, y_upper])
+
+            st.plotly_chart(fig, use_container_width=True)
 
 
 
@@ -1277,6 +1304,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
