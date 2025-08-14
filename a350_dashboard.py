@@ -633,8 +633,8 @@ else:
             st.plotly_chart(fig, use_container_width=True)
 
 
-# --- Selected ATA Monthly Count の下に月別グラフ追加 ---
-st.subheader("📊 Selected ATA Monthly Count - Monthly Trend")
+# --- Selected ATA Monthly Count の下に月別積み上げグラフ追加 ---
+st.subheader("📊 Selected ATA Monthly Count - Monthly Trend (Tail別積み上げ)")
 
 # 横軸: 月ごと、縦軸: Count / OI Rate
 metric_choice_selected_ata = st.radio(
@@ -680,64 +680,68 @@ else:
     min_month = (max_month - DateOffset(months=11)).to_period("M").to_timestamp()
     months_range = pd.period_range(min_month, max_month, freq="M").to_timestamp()
 
-    # 月別集計関数（Count）
-    def monthly_counts_for_sub(ac_type: str) -> pd.DataFrame:
-        s = df_selected_ata[df_selected_ata["Aircraft_Type"] == ac_type].groupby("Month").size()
-        s = s.reindex(months_range, fill_value=0)
-        return s.reset_index().rename(columns={"index": "Month", 0: "Count"})
+    # Tailごとの月別件数集計
+    def monthly_tail_counts(ac_type: str) -> pd.DataFrame:
+        df_ac = df_selected_ata[df_selected_ata["Aircraft_Type"] == ac_type].copy()
+        # Tailごとに月別件数集計
+        df_ac_grouped = (
+            df_ac.groupby(["Month", "Tail"]).size().reset_index(name="Count")
+        )
+        # 欠月・欠Tailの補完
+        df_ac_grouped = df_ac_grouped.pivot(index="Month", columns="Tail", values="Count").reindex(months_range, fill_value=0)
+        df_ac_grouped = df_ac_grouped.fillna(0)
+        return df_ac_grouped
 
-    # 月別集計関数（OI Rate）
+    # OI Rate 用の月別FCも準備
     df_fc_base_sub = df_fc.copy()
     df_fc_base_sub["Month"] = pd.to_datetime(df_fc_base_sub["YearMonth"], format="%Y-%m", errors="coerce")
 
-    def monthly_fc_for_sub(ac_type: str) -> pd.DataFrame:
-        s = df_fc_base_sub[df_fc_base_sub["Aircraft_Type"] == ac_type].groupby("Month")["FC"].sum()
-        s = s.reindex(months_range, fill_value=0)
-        return s.reset_index().rename(columns={"index": "Month", "FC": "FC"})
+    def monthly_tail_oi_rate(ac_type: str, df_count: pd.DataFrame) -> pd.DataFrame:
+        df_fc_ac = df_fc_base_sub[df_fc_base_sub["Aircraft_Type"] == ac_type].copy()
+        # TailごとのFC（OI Rate計算用）
+        df_fc_grouped = df_fc_ac.groupby(["Month", "Tail"])["FC"].sum().reset_index()
+        df_fc_grouped = df_fc_grouped.pivot(index="Month", columns="Tail", values="FC").reindex(df_count.index, fill_value=0)
+        # OI Rate = Count / FC * 100
+        df_oi = df_count.divide(df_fc_grouped).multiply(100).fillna(0)
+        return df_oi
 
-    # A350-900 / A350-1000 の左右カラムにグラフ表示
+    # 左右カラムにグラフ表示
     col_900, col_1000 = st.columns(2)
     for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
         with col:
-            df_cnt = monthly_counts_for_sub(ac_type)
-
+            df_count_tail = monthly_tail_counts(ac_type)
             if metric_choice_selected_ata == "OI Rate (100 TO)":
-                df_fc_m = monthly_fc_for_sub(ac_type)
-                df_m = pd.merge(df_cnt, df_fc_m, on="Month", how="left")
-                df_m["Value"] = np.where(df_m["FC"] > 0, (df_m["Count"] / df_m["FC"]) * 100, 0.0)
-                y_vals = df_m["Value"]
+                df_plot = monthly_tail_oi_rate(ac_type, df_count_tail)
                 y_title = "OI Rate (100 TO)"
-                text_vals = df_m["Value"].round(2).astype(str)
             else:
-                y_vals = df_cnt["Count"]
+                df_plot = df_count_tail
                 y_title = "件数"
-                text_vals = df_cnt["Count"].astype(str)
 
-            # グラフ作成
-            fig = go.Figure(go.Bar(
-                x=months_range.strftime("%Y-%m"),
-                y=y_vals,
-                text=text_vals,
-                textposition="outside",
-                marker_color="steelblue",
-                cliponaxis=False
-            ))
+            # 積み上げ棒グラフ
+            fig = go.Figure()
+            for tail in df_plot.columns:
+                fig.add_trace(go.Bar(
+                    x=df_plot.index.strftime("%Y-%m"),
+                    y=df_plot[tail],
+                    name=tail,
+                    text=df_plot[tail].astype(int),
+                    textposition="inside"
+                ))
 
             fig.update_layout(
-                title=f"{ac_type} - {selected_ata_subchapter} 月別 {metric_choice_selected_ata}",
+                barmode="stack",
+                title=f"{ac_type} - {selected_ata_subchapter} 月別 {metric_choice_selected_ata} (Tail別積み上げ)",
                 xaxis_title="年月",
                 yaxis_title=y_title,
                 xaxis=dict(type="category"),
                 margin=dict(t=60, b=100, l=50, r=20)
             )
 
-            # Y軸最小値を固定して棒が消えないようにする
-            y_max = float(y_vals.max()) if len(y_vals) else 0.0
-            y_upper = max(1.0, y_max * 1.2)
-            fig.update_yaxes(range=[0, y_upper])
+            # Y軸上限
+            y_max = df_plot.sum(axis=1).max() if not df_plot.empty else 0
+            fig.update_yaxes(range=[0, max(1.0, y_max * 1.2)])
 
             st.plotly_chart(fig, use_container_width=True)
-
 
 
 
@@ -1333,6 +1337,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
