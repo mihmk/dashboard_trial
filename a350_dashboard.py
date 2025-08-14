@@ -636,95 +636,108 @@ else:
 # --- Selected ATA Monthly Count の下に月別グラフ追加 ---
 st.subheader("📊 Selected ATA Monthly Count - Monthly Trend")
 
-# ① Data表で選択された ATA_Chapter に該当するサブチャプターだけを抽出
-df_selected_ata_filtered = df_ir_base.copy()  # df_ir_base は Data表で選択済みの ATA_Chapter にフィルタ済み
-ata_subchapter_list = df_selected_ata_filtered["ATA_SubChapter"].dropna().unique().tolist()
-ata_subchapter_list.sort()
+# 横軸: 月ごと、縦軸: Count / OI Rate
+metric_choice_selected_ata = st.radio(
+    "表示指標を選択してください",
+    ("Count", "OI Rate (100 TO)"),
+    horizontal=True,
+    key="metric_choice_selected_ata"
+)
 
-if ata_subchapter_list:
-    # デフォルトは件数が最も多いサブチャプター
-    default_subchapter = df_selected_ata_filtered["ATA_SubChapter"].value_counts().idxmax()
+# 選択されたATAに紐づくサブチャプター一覧を作成（文字列化・空白除去）
+df_selected_ata_filtered = df_ir_base.copy()  # df_ir_base は既に選択されたATA_Chapterでフィルタ済み
+ata_subchapter_list = (
+    df_selected_ata_filtered["ATA_SubChapter"]
+    .dropna()
+    .astype(str)
+    .str.strip()
+    .value_counts()
+    .index.tolist()
+)
 
-    # ② サブチャプター選択窓
-    selected_ata_subchapter = st.selectbox(
-        "サブチャプターを選択してください",
-        options=ata_subchapter_list,
-        index=ata_subchapter_list.index(default_subchapter),
-        key="selected_ata_subchapter"
-    )
+# デフォルトは件数が最も多いサブチャプター
+default_subchapter = ata_subchapter_list[0] if ata_subchapter_list else None
 
-    # 横軸: 月ごと、縦軸: Count / OI Rate
-    metric_choice_selected_ata = st.radio(
-        "表示指標を選択してください",
-        ("Count", "OI Rate (100 TO)"),
-        horizontal=True,
-        key="metric_choice_selected_ata"
-    )
+# サブチャプター選択窓
+selected_ata_subchapter = st.selectbox(
+    "サブチャプターを選択してください",
+    options=ata_subchapter_list,
+    index=0 if default_subchapter else -1,
+    key="selected_ata_subchapter"
+)
 
-    # 選択サブチャプターのデータ抽出
-    df_selected_ata = df_selected_ata_filtered[df_selected_ata_filtered["ATA_SubChapter"].astype(str) == selected_ata_subchapter].copy()
-    if df_selected_ata.empty:
-        st.warning(f"{selected_ata_subchapter} のデータは存在しません。")
-    else:
-        # 直近12か月の範囲を決定
-        max_month = df_selected_ata["Month"].max()
-        min_month = (max_month - DateOffset(months=11)).to_period("M").to_timestamp()
-        months_range = pd.period_range(min_month, max_month, freq="M").to_timestamp()
+# 選択 ATA_SubChapter データ抽出（文字列型・空白除去で一致）
+df_selected_ata = df_selected_ata_filtered[
+    df_selected_ata_filtered["ATA_SubChapter"].astype(str).str.strip() == selected_ata_subchapter
+].copy()
 
-        # 月別集計関数（Count）
-        def monthly_counts_for_sub(ac_type: str) -> pd.DataFrame:
-            s = df_selected_ata[df_selected_ata["Aircraft_Type"] == ac_type].groupby("Month").size()
-            s = s.reindex(months_range, fill_value=0)
-            return s.reset_index().rename(columns={"index": "Month", 0: "Count"})
-
-        # 月別集計関数（OI Rate）
-        df_fc_base = df_fc.copy()
-        df_fc_base["Month"] = pd.to_datetime(df_fc_base["YearMonth"], format="%Y-%m", errors="coerce")
-        def monthly_fc_for_sub(ac_type: str) -> pd.DataFrame:
-            s = df_fc_base[df_fc_base["Aircraft_Type"] == ac_type].groupby("Month")["FC"].sum()
-            s = s.reindex(months_range, fill_value=0)
-            return s.reset_index().rename(columns={"index": "Month", "FC": "FC"})
-
-        # グラフ表示（左右に A350-900 / A350-1000）
-        col_900, col_1000 = st.columns(2)
-        for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
-            with col:
-                df_cnt = monthly_counts_for_sub(ac_type)
-                if metric_choice_selected_ata == "OI Rate (100 TO)":
-                    df_fc_m = monthly_fc_for_sub(ac_type)
-                    df_m = pd.merge(df_cnt, df_fc_m, on="Month", how="left")
-                    df_m["Value"] = np.where(df_m["FC"] > 0, (df_m["Count"] / df_m["FC"]) * 100, 0.0)
-                    y_vals = df_m["Value"].fillna(0)
-                    y_title = "OI Rate (100 TO)"
-                    text_vals = df_m["Value"].round(2).astype(str)
-                else:
-                    y_vals = df_cnt["Count"].fillna(0)
-                    y_title = "件数"
-                    text_vals = df_cnt["Count"].astype(str)
-
-                y_max = float(pd.Series(y_vals).max()) if len(y_vals) else 0.0
-                y_upper = max(1.0, y_max * 1.2)
-
-                fig = go.Figure(go.Bar(
-                    x=months_range.strftime("%Y-%m"),
-                    y=y_vals,
-                    text=text_vals,
-                    textposition="outside",
-                    marker_color="steelblue",
-                    cliponaxis=False
-                ))
-
-                fig.update_layout(
-                    title=f"{ac_type} - {selected_ata_subchapter} 月別 {metric_choice_selected_ata}",
-                    xaxis_title="年月",
-                    yaxis_title=y_title,
-                    xaxis=dict(type="category"),
-                    margin=dict(t=60, b=100, l=50, r=20)
-                )
-                fig.update_yaxes(range=[0, y_upper])
-                st.plotly_chart(fig, use_container_width=True)
+if df_selected_ata.empty:
+    st.warning(f"{selected_ata_subchapter} のデータは存在しません。")
 else:
-    st.info("選択されたATA Chapterに該当するサブチャプターがありません。")
+    # 直近12か月の範囲を決定
+    df_selected_ata["Month"] = pd.to_datetime(df_selected_ata["YearMonth"], format="%Y-%m", errors="coerce")
+    max_month = df_selected_ata["Month"].max()
+    min_month = (max_month - DateOffset(months=11)).to_period("M").to_timestamp()
+    months_range = pd.period_range(min_month, max_month, freq="M").to_timestamp()
+
+    # 月別集計関数（Count）
+    def monthly_counts_for_sub(ac_type: str) -> pd.DataFrame:
+        s = df_selected_ata[df_selected_ata["Aircraft_Type"] == ac_type].groupby("Month").size()
+        s = s.reindex(months_range, fill_value=0)
+        return s.reset_index().rename(columns={"index": "Month", 0: "Count"})
+
+    # 月別集計関数（OI Rate）
+    df_fc_base_sub = df_fc.copy()
+    df_fc_base_sub["Month"] = pd.to_datetime(df_fc_base_sub["YearMonth"], format="%Y-%m", errors="coerce")
+
+    def monthly_fc_for_sub(ac_type: str) -> pd.DataFrame:
+        s = df_fc_base_sub[df_fc_base_sub["Aircraft_Type"] == ac_type].groupby("Month")["FC"].sum()
+        s = s.reindex(months_range, fill_value=0)
+        return s.reset_index().rename(columns={"index": "Month", "FC": "FC"})
+
+    # A350-900 / A350-1000 の左右カラムにグラフ表示
+    col_900, col_1000 = st.columns(2)
+    for ac_type, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
+        with col:
+            df_cnt = monthly_counts_for_sub(ac_type)
+
+            if metric_choice_selected_ata == "OI Rate (100 TO)":
+                df_fc_m = monthly_fc_for_sub(ac_type)
+                df_m = pd.merge(df_cnt, df_fc_m, on="Month", how="left")
+                df_m["Value"] = np.where(df_m["FC"] > 0, (df_m["Count"] / df_m["FC"]) * 100, 0.0)
+                y_vals = df_m["Value"]
+                y_title = "OI Rate (100 TO)"
+                text_vals = df_m["Value"].round(2).astype(str)
+            else:
+                y_vals = df_cnt["Count"]
+                y_title = "件数"
+                text_vals = df_cnt["Count"].astype(str)
+
+            # グラフ作成
+            fig = go.Figure(go.Bar(
+                x=months_range.strftime("%Y-%m"),
+                y=y_vals,
+                text=text_vals,
+                textposition="outside",
+                marker_color="steelblue",
+                cliponaxis=False
+            ))
+
+            fig.update_layout(
+                title=f"{ac_type} - {selected_ata_subchapter} 月別 {metric_choice_selected_ata}",
+                xaxis_title="年月",
+                yaxis_title=y_title,
+                xaxis=dict(type="category"),
+                margin=dict(t=60, b=100, l=50, r=20)
+            )
+
+            # Y軸最小値を固定して棒が消えないようにする
+            y_max = float(y_vals.max()) if len(y_vals) else 0.0
+            y_upper = max(1.0, y_max * 1.2)
+            fig.update_yaxes(range=[0, y_upper])
+
+            st.plotly_chart(fig, use_container_width=True)
+
 
 
 
@@ -1320,6 +1333,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
