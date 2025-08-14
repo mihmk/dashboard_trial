@@ -583,36 +583,42 @@ if selected_ata_chapter != "All":
     st.plotly_chart(fig_ata_monthly, use_container_width=True)
 
 
-# --- ATAサブチャプター選択 ---
-ata_list = sorted(df_irregular["ATA_SubChapter"].dropna().unique())
-selected_ata = st.selectbox("📌 ATAサブチャプターを選択", ata_list, key="ata_selectbox")
+# --- df_irregular 読み込み（既存処理を流用） ---
+df_irregular = load_irregular_data()
 
+# --- 安全に ATA サブチャプター一覧を作成 ---
+if "ATA_SubChapter" in df_irregular.columns and not df_irregular.empty:
+    ata_list = sorted(df_irregular["ATA_SubChapter"].dropna().unique())
+else:
+    ata_list = []
 
-# --- 選択されたサブチャプターのイレギュラー表 ---
-st.subheader(f"📄 ATA {selected_ata} のイレギュラー一覧")
+# --- ATA サブチャプター選択 ---
+if ata_list:
+    selected_ata = st.selectbox("📌 ATAサブチャプターを選択", ata_list, key="ata_selectbox")
 
-irreg_display_cols = [
-    "Date", "FLT_Number", "Tail", "Branch",
-    "Delay_Code", "Delay_Time",
-    "ATA_SubChapter", "Defect", "Action"
-]
+    # --- 積み上げグラフ（既存処理を流用） ---
+    fig = px.bar(
+        df_irregular[df_irregular["ATA_SubChapter"] == selected_ata],
+        x="Date",
+        y="Count",
+        color="Branch",
+        title=f"ATAサブチャプター {selected_ata} の積み上げ式グラフ"
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
-df_selected_irreg = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata]
-df_selected_irreg = df_selected_irreg[irreg_display_cols].sort_values("Date", ascending=False)
+    # --- 選択されたサブチャプターのイレギュラー表 ---
+    st.subheader(f"📄 ATA {selected_ata} のイレギュラー一覧")
+    irreg_display_cols = [
+        "Date", "FLT_Number", "Tail", "Branch",
+        "Delay_Code", "Delay_Time",
+        "ATA_SubChapter", "Defect", "Action"
+    ]
+    df_selected_irreg = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata]
+    df_selected_irreg = df_selected_irreg[irreg_display_cols].sort_values("Date", ascending=False)
+    st.dataframe(df_selected_irreg, use_container_width=True)
+else:
+    st.warning("⚠ イレギュラーデータが存在しないか、'ATA_SubChapter' 列がありません。")
 
-st.dataframe(df_selected_irreg, use_container_width=True)
-
-
-# --- 積み上げグラフ（既存処理） ---
-# ここは既存の積み上げ式グラフのコードをそのまま使う
-fig = px.bar(
-    df_irregular[df_irregular["ATA_SubChapter"] == selected_ata],
-    x="Date",
-    y="Count",
-    color="Branch",
-    title=f"ATAサブチャプター {selected_ata} の積み上げ式グラフ"
-)
-st.plotly_chart(fig, use_container_width=True)
 
 
 
@@ -1207,6 +1213,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
