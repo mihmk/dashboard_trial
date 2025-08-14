@@ -545,17 +545,19 @@ st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 # --- Data 表の下に ATA 別グラフを追加 ---
 st.subheader("📊 Selected ATA Analysis")
 
-# Data 表上で選択した ATA_SubChapter を取得
+# ATA_SubChapter を文字列に統一してからソート
+ata_options = sorted(df_irregular["ATA_SubChapter"].dropna().astype(str).unique())
+
 selected_ata_subchapter = st.selectbox(
     "表示する ATA SubChapter を選択してください",
-    sorted(df_irregular["ATA_SubChapter"].dropna().unique())
+    ata_options
 )
 
 # Count / OI Rate 切替
 display_mode = st.radio("表示形式を選択してください", ["Count", "OI Rate (100 TO)"], key="ata_count_oirate")
 
 # 選択 ATA のデータ抽出
-df_selected_ata = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata_subchapter].copy()
+df_selected_ata = df_irregular[df_irregular["ATA_SubChapter"].astype(str) == selected_ata_subchapter].copy()
 if df_selected_ata.empty:
     st.warning(f"{selected_ata_subchapter} のデータは存在しません。")
 else:
@@ -602,6 +604,7 @@ else:
                 margin=dict(t=60, b=120)
             )
             st.plotly_chart(fig_bar, use_container_width=True)
+
 
 
 
@@ -1196,6 +1199,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
