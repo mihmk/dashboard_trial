@@ -540,8 +540,82 @@ df_irregular_sorted = df_irregular_display[irreg_display_cols] \
 
 # 表示（高さ調整のみ）
 st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
-            
-            
+
+
+# ==========================================================
+# 選択 ATA の月別 Count / OI Rate グラフ（機種別）
+# ==========================================================
+if selected_ata_chapter != "All":
+    st.subheader(f"📊 ATA {selected_ata_chapter} 月別推移（機種別）")
+
+    # 選択 ATA のデータ抽出
+    df_ata = df_irregular[df_irregular["ATA_SubChapter"].astype(str).str[:2] == selected_ata_chapter].copy()
+
+    # 月別・機種別集計
+    monthly_counts = (
+        df_ata.groupby(["YearMonth", "Aircraft_Type"])
+        .size()
+        .reset_index(name="Count")
+    )
+
+    # FCデータ結合（OI Rate計算用）
+    monthly_fc = df_fc.groupby(["YearMonth", "Aircraft_Type"], as_index=False)["FC"].sum()
+
+    monthly_merged = pd.merge(monthly_counts, monthly_fc, on=["YearMonth", "Aircraft_Type"], how="left")
+    monthly_merged["OI_Rate"] = (monthly_merged["Count"] / monthly_merged["FC"] * 100).round(2)
+
+    # 表示モード選択
+    metric_mode = st.radio("表示指標", ["Count", "OI Rate (100 TO)"], horizontal=True, key="ata_metric_mode")
+
+    y_col = "Count" if metric_mode == "Count" else "OI_Rate"
+    y_title = "件数" if metric_mode == "Count" else "OI Rate (100 TO)"
+
+    fig_ata_monthly = px.bar(
+        monthly_merged,
+        x="YearMonth",
+        y=y_col,
+        color="Aircraft_Type",
+        barmode="group",
+        title=f"ATA {selected_ata_chapter} - 月別 {metric_mode}",
+        labels={y_col: y_title, "YearMonth": "年月"}
+    )
+    fig_ata_monthly.update_layout(xaxis=dict(type="category"))
+    st.plotly_chart(fig_ata_monthly, use_container_width=True)
+
+
+# --- ATAサブチャプター選択 ---
+ata_list = sorted(df_irregular["ATA_SubChapter"].dropna().unique())
+selected_ata = st.selectbox("📌 ATAサブチャプターを選択", ata_list, key="ata_selectbox")
+
+
+# --- 選択されたサブチャプターのイレギュラー表 ---
+st.subheader(f"📄 ATA {selected_ata} のイレギュラー一覧")
+
+irreg_display_cols = [
+    "Date", "FLT_Number", "Tail", "Branch",
+    "Delay_Code", "Delay_Time",
+    "ATA_SubChapter", "Defect", "Action"
+]
+
+df_selected_irreg = df_irregular[df_irregular["ATA_SubChapter"] == selected_ata]
+df_selected_irreg = df_selected_irreg[irreg_display_cols].sort_values("Date", ascending=False)
+
+st.dataframe(df_selected_irreg, use_container_width=True)
+
+
+# --- 積み上げグラフ（既存処理） ---
+# ここは既存の積み上げ式グラフのコードをそのまま使う
+fig = px.bar(
+    df_irregular[df_irregular["ATA_SubChapter"] == selected_ata],
+    x="Date",
+    y="Count",
+    color="Branch",
+    title=f"ATAサブチャプター {selected_ata} の積み上げ式グラフ"
+)
+st.plotly_chart(fig, use_container_width=True)
+
+
+
 # ================================
 # ✈ FLT SQ / Pilot Report
 # ================================
@@ -1133,6 +1207,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
