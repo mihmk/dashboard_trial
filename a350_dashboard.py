@@ -546,8 +546,6 @@ st.dataframe(df_irregular_sorted, use_container_width=True, height=500)
 # ==== Data 表の下：Data表で選択した ATA_Chapter に連動した月別推移（Count / OI Rate） ====
 st.subheader("📊 Selected ATA Monthly (Data表の選択に連動)")
 
-# Data表のセクションで作った選択値をそのまま使う（selected_ata_chapter）
-# 例：selected_ata_chapter は "All" または "00" "21" ... の2桁文字列
 metric_choice_data = st.radio(
     "表示指標を選択してください",
     ("Count", "OI Rate (100 TO)"),
@@ -582,6 +580,7 @@ else:
     # FC（月別・機種別）を用意（OI Rate 用）
     df_fc_base = df_fc.copy()
     df_fc_base["Month"] = pd.to_datetime(df_fc_base["YearMonth"], format="%Y-%m", errors="coerce")
+
     def monthly_fc_for(ac_type: str) -> pd.DataFrame:
         s = (df_fc_base[df_fc_base["Aircraft_Type"] == ac_type]
              .groupby("Month")["FC"].sum())
@@ -596,22 +595,32 @@ else:
             if metric_choice_data == "OI Rate (100 TO)":
                 df_fc_m = monthly_fc_for(ac_type)
                 df_m = pd.merge(df_cnt, df_fc_m, on="Month", how="left")
+                # OI Rate = Count / FC * 100（FC=0は0に）
                 df_m["Value"] = np.where(df_m["FC"] > 0, (df_m["Count"] / df_m["FC"]) * 100, 0.0)
-                y_vals = df_m["Value"]
+                y_vals = df_m["Value"].fillna(0)
                 y_title = "OI Rate (100 TO)"
                 text_vals = df_m["Value"].round(2).astype(str)
             else:
-                y_vals = df_cnt["Count"]
+                y_vals = df_cnt["Count"].fillna(0)
                 y_title = "件数"
                 text_vals = df_cnt["Count"].astype(str)
+
+            # —— ここが追加のポイント：極小値でも棒が消えないようY軸上限の最小値を固定 ——
+            y_max = float(pd.Series(y_vals).max()) if len(y_vals) else 0.0
+            if metric_choice_data == "OI Rate (100 TO)":
+                y_upper = max(0.1, y_max * 1.2)   # 最低でも 0.1 を確保
+            else:
+                y_upper = max(1.0, y_max * 1.2)   # 最低でも 1 件を確保
 
             fig = go.Figure(go.Bar(
                 x=months_range.strftime("%Y-%m"),
                 y=y_vals,
                 text=text_vals,
                 textposition="outside",
-                marker_color="steelblue"
+                marker_color="steelblue",
+                cliponaxis=False  # 低い棒でもラベルが軸外に出せるように
             ))
+
             ata_label = selected_ata_chapter if selected_ata_chapter != "All" else "All"
             fig.update_layout(
                 title=f"{ac_type} - ATA {ata_label} 月別 {metric_choice_data}",
@@ -620,8 +629,8 @@ else:
                 xaxis=dict(type="category"),
                 margin=dict(t=60, b=100, l=50, r=20)
             )
+            fig.update_yaxes(range=[0, y_upper])  # 縦軸を固定
             st.plotly_chart(fig, use_container_width=True)
-
 
 
 # --- Data 表の下に ATA 別グラフを追加（Count 固定） ---
@@ -1266,6 +1275,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
