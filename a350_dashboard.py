@@ -1124,67 +1124,56 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
 
 
 # --- サブチャプター選択と不具合詳細表示（機種別左右表示） ---
-st.subheader("🔍 Breakdown by Subchapter (per Aircraft Type)")
+st.subheader("📊 Selected ATA Monthly Count")
 
-# 上部で選択されたATAに該当する全機種のデータを抽出
-ata_filtered = df_recent[df_recent['ATA_Chapter'] == selected_ata].copy()
+# 選択されたATAでフィルタ
+ata_filtered = df[df["ATA"] == selected_ata]
 
-# サブチャプター件数カウント
-subchapter_counts = (
-    ata_filtered['ATA_SubChapter']
-    .value_counts()
-    .reset_index()
-)
-subchapter_counts.columns = ['ATA_SubChapter', 'Count']
+# 両機種を含めたサブチャプター件数集計
+sub_counts = ata_filtered.groupby("ATA_SubChapter").size().reset_index(name="count")
+sub_counts = sub_counts.sort_values("count", ascending=False)
 
-# 件数トップをデフォルトに設定
-if not subchapter_counts.empty:
-    default_sub = subchapter_counts['ATA_SubChapter'].iloc[0]
-    subchapter_options = subchapter_counts['ATA_SubChapter'].tolist()
-else:
-    default_sub = None
-    subchapter_options = ["（該当なし）"]
-
-# サブチャプター選択
-selected_sub = st.selectbox(
-    "Select Subchapter（Sorted by number）",
-    options=subchapter_options,
-    index=0
+# 両機種に共通するサブチャプターを抽出
+common_subchapters = (
+    set(df[df["AC_Type"] == "A350-900"]["ATA_SubChapter"]) &
+    set(df[df["AC_Type"] == "A350-1000"]["ATA_SubChapter"])
 )
 
-# 選択されたサブチャプターのデータ抽出
-if selected_sub != "（該当なし）":
-    sub_df = ata_filtered[ata_filtered['ATA_SubChapter'] == selected_sub].copy()
+# デフォルト値を決定（両機種に共通する中で最多件数）
+if not common_subchapters:
+    default_sub = sub_counts["ATA_SubChapter"].iloc[0]
 else:
-    sub_df = pd.DataFrame(columns=df_recent.columns)
+    sub_counts_common = sub_counts[sub_counts["ATA_SubChapter"].isin(common_subchapters)]
+    if not sub_counts_common.empty:
+        default_sub = sub_counts_common["ATA_SubChapter"].iloc[0]
+    else:
+        default_sub = sub_counts["ATA_SubChapter"].iloc[0]
 
-# Tail選択フィルタ
-if not sub_df.empty:
-    unique_tails = sorted(sub_df['Tail'].dropna().unique())
-    tail_filter = st.selectbox("✈️ Select Tail Number", options=["すべて"] + unique_tails)
-    if tail_filter != "すべて":
-        sub_df = sub_df[sub_df['Tail'] == tail_filter]
+# サブチャプター選択ウィジェット
+selected_subchapter = st.selectbox(
+    "🔍 Select Subchapter",
+    options=sub_counts["ATA_SubChapter"].tolist(),
+    index=sub_counts["ATA_SubChapter"].tolist().index(default_sub)
+)
 
-# 表示列を整形（不要列を除き、新しい列名に変更）
-if not sub_df.empty:
-    display_df = sub_df[['Reported_Date_Only', 'Tail', 'MOD_Description', 'Corrective_Action']].copy()
-    display_df.columns = ['Reported_Date', 'Tail', 'Description', 'Work_Performed']
-    display_df = display_df.sort_values(by='Reported_Date', ascending=False)
-else:
-    display_df = pd.DataFrame(columns=['Reported_Date', 'Tail', 'Description', 'Work_Performed'])
-
-# 機種別に左右表示
+# 機種別の不具合詳細を左右に表示
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("#### ✈ A350-900")
-    df_900 = display_df[display_df['Tail'].str.contains("JA9", na=False)]
-    st.dataframe(df_900, use_container_width=True, hide_index=True)
+    st.markdown("**A350-900**")
+    df_900 = ata_filtered[
+        (ata_filtered["AC_Type"] == "A350-900") &
+        (ata_filtered["ATA_SubChapter"] == selected_subchapter)
+    ]
+    st.dataframe(df_900)
 
 with col2:
-    st.markdown("#### ✈ A350-1000")
-    df_1000 = display_df[display_df['Tail'].str.contains("JA1", na=False)]
-    st.dataframe(df_1000, use_container_width=True, hide_index=True)
+    st.markdown("**A350-1000**")
+    df_1000 = ata_filtered[
+        (ata_filtered["AC_Type"] == "A350-1000") &
+        (ata_filtered["ATA_SubChapter"] == selected_subchapter)
+    ]
+    st.dataframe(df_1000)
 
 
 # -------------------------------
@@ -1420,6 +1409,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
