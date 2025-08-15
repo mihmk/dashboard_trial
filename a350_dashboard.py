@@ -1139,9 +1139,14 @@ else:
         .reset_index()
         .rename(columns={'index': 'ATA_SubChapter', 'ATA_SubChapter': 'Count'})
     )
+
+    # 件数最多のサブチャプターを初期値に設定
+    default_sub = subchapter_counts['ATA_SubChapter'].iloc[0] if not subchapter_counts.empty else None
+
     selected_sub = st.selectbox(
         "Select Subchapter（Sorted by number）",
-        options=subchapter_counts['ATA_SubChapter'].astype(str).tolist()
+        options=subchapter_counts['ATA_SubChapter'].astype(str).tolist(),
+        index=0 if default_sub is not None else None
     )
 
     # 選択されたサブチャプターで抽出（両機種共通の Tail フィルタUI）
@@ -1155,7 +1160,6 @@ else:
 
     # 表示列を作成
     display_cols = ['ATA_SubChapter', 'Reported_Date_Only', 'Tail', 'MOD_Description', 'Corrective_Action']
-    # 存在列だけ使う（安全策）
     display_cols = [c for c in display_cols if c in df_sub_all.columns]
 
     # 左右カラムで A350-900 / A350-1000 を表示
@@ -1175,6 +1179,7 @@ else:
                     .reset_index(drop=True)
                 )
                 st.dataframe(sub_df_display, use_container_width=True, hide_index=True)
+
 
 # -------------------------------
 # 🔢 サブチャプター内 不具合内容別件数推移（折れ線グラフ）
@@ -1409,6 +1414,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
