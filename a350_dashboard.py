@@ -1124,61 +1124,55 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
 
 
 # --- サブチャプター選択と不具合詳細表示（機種別左右表示） ---
-st.subheader("🔍 Breakdown by Subchapter")
+st.subheader("🔍 Breakdown by Subchapter (per Aircraft Type)")
 
-# ベース：直近1年・選択ATAのみ
-df_break_base = df_recent[df_recent['ATA_Chapter'] == selected_ata].copy()
+# 上部で選択されたATAのサブチャプターのみ抽出
+ata_filtered = ata_month[ata_month['ATA'] == selected_ata].copy()
 
-if df_break_base.empty:
-    st.info(f"ATA {selected_ata} のデータがありません。")
-else:
-    # サブチャプターを件数順に並べて選択
-    subchapter_counts = (
-        df_break_base['ATA_SubChapter']
-        .value_counts()
-        .reset_index()
-        .rename(columns={'index': 'ATA_SubChapter', 'ATA_SubChapter': 'Count'})
-    )
+# 件数カウントと並び替え
+subchapter_counts = ata_filtered['ATA_SubChapter'].value_counts().reset_index()
+subchapter_counts.columns = ['ATA_SubChapter', 'Count']
 
-    # 件数最多のサブチャプターを初期値に設定
-    default_sub = subchapter_counts['ATA_SubChapter'].iloc[0] if not subchapter_counts.empty else None
+# デフォルト選択は件数トップ
+default_sub = subchapter_counts['ATA_SubChapter'].iloc[0] if not subchapter_counts.empty else None
 
-    selected_sub = st.selectbox(
-        "Select Subchapter（Sorted by number）",
-        options=subchapter_counts['ATA_SubChapter'].astype(str).tolist(),
-        index=0 if default_sub is not None else None
-    )
+# サブチャプター選択
+selected_sub = st.selectbox(
+    "Select Subchapter（Sorted by number）",
+    subchapter_counts['ATA_SubChapter'].tolist(),
+    index=0 if default_sub else None
+)
 
-    # 選択されたサブチャプターで抽出（両機種共通の Tail フィルタUI）
-    df_sub_all = df_break_base[df_break_base['ATA_SubChapter'].astype(str) == str(selected_sub)].copy()
+# 選択サブチャプターのデータ抽出
+sub_df = ata_filtered[ata_filtered['ATA_SubChapter'] == selected_sub].copy()
 
-    # Tail フィルタ（全体で1つ）
-    unique_tails = sorted(df_sub_all['Tail'].dropna().astype(str).unique())
-    tail_filter = st.selectbox("✈️ Select Tail Number", options=["すべて"] + unique_tails)
-    if tail_filter != "すべて":
-        df_sub_all = df_sub_all[df_sub_all['Tail'].astype(str) == tail_filter]
+# Tail選択フィルタ
+unique_tails = sorted(sub_df['Tail'].dropna().unique())
+tail_filter = st.selectbox("✈️ Select Tail Number", options=["すべて"] + unique_tails)
 
-    # 表示列を作成
-    display_cols = ['ATA_SubChapter', 'Reported_Date_Only', 'Tail', 'MOD_Description', 'Corrective_Action']
-    display_cols = [c for c in display_cols if c in df_sub_all.columns]
+if tail_filter != "すべて":
+    sub_df = sub_df[sub_df['Tail'] == tail_filter]
 
-    # 左右カラムで A350-900 / A350-1000 を表示
-    col_900, col_1000 = st.columns(2)
+# 不要列を除き、Description / Work_Performed を追加して表示用に変換
+sub_df_display = sub_df[['Reported_Date_Only', 'Tail', 'MOD_Description', 'Corrective_Action']].copy()
+sub_df_display.columns = ['Reported_Date', 'Tail', 'Description', 'Work_Performed']
+sub_df_display = sub_df_display.sort_values(by='Reported_Date', ascending=False)
 
-    for ac_type, col in zip(['A350-900', 'A350-1000'], [col_900, col_1000]):
-        with col:
-            st.markdown(f"### ✈ {ac_type}")
-            sub_df_type = df_sub_all[df_sub_all['Aircraft_Type'] == ac_type].copy()
+# 機種別に左右表示
+col1, col2 = st.columns(2)
 
-            if sub_df_type.empty:
-                st.info(f"{ac_type} の {selected_sub} は該当データがありません。")
-            else:
-                sub_df_display = (
-                    sub_df_type[display_cols]
-                    .sort_values(by='Reported_Date_Only', ascending=False)
-                    .reset_index(drop=True)
-                )
-                st.dataframe(sub_df_display, use_container_width=True, hide_index=True)
+# 350-900
+with col1:
+    st.markdown("#### ✈ A350-900")
+    df_900 = sub_df_display[sub_df_display['Tail'].str.contains("JA9", na=False)]
+    st.dataframe(df_900, use_container_width=True, hide_index=True)
+
+# 350-1000
+with col2:
+    st.markdown("#### ✈ A350-1000")
+    df_1000 = sub_df_display[sub_df_display['Tail'].str.contains("JA1", na=False)]
+    st.dataframe(df_1000, use_container_width=True, hide_index=True)
+
 
 
 # -------------------------------
@@ -1414,6 +1408,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
