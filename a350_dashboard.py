@@ -1126,53 +1126,65 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
 # --- サブチャプター選択と不具合詳細表示（機種別左右表示） ---
 st.subheader("🔍 Breakdown by Subchapter (per Aircraft Type)")
 
-# 上部で選択されたATAのサブチャプターのみ抽出
-ata_filtered = ata_month[ata_month['ATA'] == selected_ata].copy()
+# 上部で選択されたATAに該当する全機種のデータを抽出
+ata_filtered = df_recent[df_recent['ATA_Chapter'] == selected_ata].copy()
 
-# 件数カウントと並び替え
-subchapter_counts = ata_filtered['ATA_SubChapter'].value_counts().reset_index()
+# サブチャプター件数カウント
+subchapter_counts = (
+    ata_filtered['ATA_SubChapter']
+    .value_counts()
+    .reset_index()
+)
 subchapter_counts.columns = ['ATA_SubChapter', 'Count']
 
-# デフォルト選択は件数トップ
-default_sub = subchapter_counts['ATA_SubChapter'].iloc[0] if not subchapter_counts.empty else None
+# 件数トップをデフォルトに設定
+if not subchapter_counts.empty:
+    default_sub = subchapter_counts['ATA_SubChapter'].iloc[0]
+    subchapter_options = subchapter_counts['ATA_SubChapter'].tolist()
+else:
+    default_sub = None
+    subchapter_options = ["（該当なし）"]
 
 # サブチャプター選択
 selected_sub = st.selectbox(
     "Select Subchapter（Sorted by number）",
-    subchapter_counts['ATA_SubChapter'].tolist(),
-    index=0 if default_sub else None
+    options=subchapter_options,
+    index=0
 )
 
-# 選択サブチャプターのデータ抽出
-sub_df = ata_filtered[ata_filtered['ATA_SubChapter'] == selected_sub].copy()
+# 選択されたサブチャプターのデータ抽出
+if selected_sub != "（該当なし）":
+    sub_df = ata_filtered[ata_filtered['ATA_SubChapter'] == selected_sub].copy()
+else:
+    sub_df = pd.DataFrame(columns=df_recent.columns)
 
 # Tail選択フィルタ
-unique_tails = sorted(sub_df['Tail'].dropna().unique())
-tail_filter = st.selectbox("✈️ Select Tail Number", options=["すべて"] + unique_tails)
+if not sub_df.empty:
+    unique_tails = sorted(sub_df['Tail'].dropna().unique())
+    tail_filter = st.selectbox("✈️ Select Tail Number", options=["すべて"] + unique_tails)
+    if tail_filter != "すべて":
+        sub_df = sub_df[sub_df['Tail'] == tail_filter]
 
-if tail_filter != "すべて":
-    sub_df = sub_df[sub_df['Tail'] == tail_filter]
-
-# 不要列を除き、Description / Work_Performed を追加して表示用に変換
-sub_df_display = sub_df[['Reported_Date_Only', 'Tail', 'MOD_Description', 'Corrective_Action']].copy()
-sub_df_display.columns = ['Reported_Date', 'Tail', 'Description', 'Work_Performed']
-sub_df_display = sub_df_display.sort_values(by='Reported_Date', ascending=False)
+# 表示列を整形（不要列を除き、新しい列名に変更）
+if not sub_df.empty:
+    display_df = sub_df[['Reported_Date_Only', 'Tail', 'MOD_Description', 'Corrective_Action']].copy()
+    display_df.columns = ['Reported_Date', 'Tail', 'Description', 'Work_Performed']
+    display_df = display_df.sort_values(by='Reported_Date', ascending=False)
+else:
+    display_df = pd.DataFrame(columns=['Reported_Date', 'Tail', 'Description', 'Work_Performed'])
 
 # 機種別に左右表示
 col1, col2 = st.columns(2)
 
-# 350-900
 with col1:
     st.markdown("#### ✈ A350-900")
-    df_900 = sub_df_display[sub_df_display['Tail'].str.contains("JA9", na=False)]
+    df_900 = display_df[display_df['Tail'].str.contains("JA9", na=False)]
     st.dataframe(df_900, use_container_width=True, hide_index=True)
 
-# 350-1000
 with col2:
     st.markdown("#### ✈ A350-1000")
-    df_1000 = sub_df_display[sub_df_display['Tail'].str.contains("JA1", na=False)]
+    df_1000 = display_df[display_df['Tail'].str.contains("JA1", na=False)]
     st.dataframe(df_1000, use_container_width=True, hide_index=True)
-
 
 
 # -------------------------------
@@ -1408,6 +1420,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
