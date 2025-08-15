@@ -1123,27 +1123,58 @@ for aircraft, col in zip(["A350-900", "A350-1000"], [col_900, col_1000]):
 
 
 
-# --- サブチャプター選択と不具合詳細表示 ---
+# --- サブチャプター選択と不具合詳細表示（機種別左右表示） ---
 st.subheader("🔍 Breakdown by Subchapter")
 
-subchapter_counts = ata_month['ATA_SubChapter'].value_counts().reset_index()
-subchapter_counts.columns = ['ATA_SubChapter', 'Count']
+# ベース：直近1年・選択ATAのみ
+df_break_base = df_recent[df_recent['ATA_Chapter'] == selected_ata].copy()
 
-selected_sub = st.selectbox("Select Subchapter（Sorted by number）", subchapter_counts['ATA_SubChapter'].tolist())
+if df_break_base.empty:
+    st.info(f"ATA {selected_ata} のデータがありません。")
+else:
+    # サブチャプターを件数順に並べて選択
+    subchapter_counts = (
+        df_break_base['ATA_SubChapter']
+        .value_counts()
+        .reset_index()
+        .rename(columns={'index': 'ATA_SubChapter', 'ATA_SubChapter': 'Count'})
+    )
+    selected_sub = st.selectbox(
+        "Select Subchapter（Sorted by number）",
+        options=subchapter_counts['ATA_SubChapter'].astype(str).tolist()
+    )
 
-sub_df = ata_month[ata_month['ATA_SubChapter'] == selected_sub].copy()
+    # 選択されたサブチャプターで抽出（両機種共通の Tail フィルタUI）
+    df_sub_all = df_break_base[df_break_base['ATA_SubChapter'].astype(str) == str(selected_sub)].copy()
 
-# Tailでフィルター可能なインターフェースを追加
-unique_tails = sorted(sub_df['Tail'].dropna().unique())
-tail_filter = st.selectbox("✈️ Select Tail Number", options=["すべて"] + unique_tails)
+    # Tail フィルタ（全体で1つ）
+    unique_tails = sorted(df_sub_all['Tail'].dropna().astype(str).unique())
+    tail_filter = st.selectbox("✈️ Select Tail Number", options=["すべて"] + unique_tails)
+    if tail_filter != "すべて":
+        df_sub_all = df_sub_all[df_sub_all['Tail'].astype(str) == tail_filter]
 
-if tail_filter != "すべて":
-    sub_df = sub_df[sub_df['Tail'] == tail_filter]
+    # 表示列を作成
+    display_cols = ['ATA_SubChapter', 'Reported_Date_Only', 'Tail', 'MOD_Description', 'Corrective_Action']
+    # 存在列だけ使う（安全策）
+    display_cols = [c for c in display_cols if c in df_sub_all.columns]
 
-sub_df_display = sub_df[['ATA_SubChapter', 'Reported_Date_Only', 'Tail', 'MOD_Description', 'Corrective_Action']]
-sub_df_display = sub_df_display.sort_values(by='Reported_Date_Only', ascending=False)
+    # 左右カラムで A350-900 / A350-1000 を表示
+    col_900, col_1000 = st.columns(2)
 
-st.dataframe(sub_df_display, use_container_width=True, hide_index=True)
+    for ac_type, col in zip(['A350-900', 'A350-1000'], [col_900, col_1000]):
+        with col:
+            st.markdown(f"### ✈ {ac_type}")
+            sub_df_type = df_sub_all[df_sub_all['Aircraft_Type'] == ac_type].copy()
+
+            if sub_df_type.empty:
+                st.info(f"{ac_type} の {selected_sub} は該当データがありません。")
+            else:
+                sub_df_display = (
+                    sub_df_type[display_cols]
+                    .sort_values(by='Reported_Date_Only', ascending=False)
+                    .reset_index(drop=True)
+                )
+                st.dataframe(sub_df_display, use_container_width=True, hide_index=True)
 
 # -------------------------------
 # 🔢 サブチャプター内 不具合内容別件数推移（折れ線グラフ）
@@ -1378,6 +1409,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
