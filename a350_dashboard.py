@@ -139,7 +139,7 @@ monthly_combined = monthly_combined.sort_values("YearMonth")
 
 
 # -------------------------------
-# 📊 月別推移グラフ（不具合 + イレギュラー）
+# 📊 月別推移グラフ（不具合 + DLY）
 # -------------------------------
 st.subheader("📊 A350 Fleet Brief")
 
@@ -382,12 +382,12 @@ else:
             yaxis="y1"
         ))
 
-    # イレギュラー件数（棒グラフ）
+    # DLY件数（棒グラフ）
     if not irreg_total_12.empty:
         fig_rel_type.add_trace(go.Bar(
             x=irreg_total_12["YearMonth_dt"],
             y=irreg_total_12["Irreg_Total"],
-            name="イレギュラー件数（全機種）",
+            name="DLY件数（全機種）",
             yaxis="y2",
             marker=dict(color="lightgrey"),
             opacity=0.6
@@ -399,10 +399,10 @@ else:
 
     # レイアウト
     fig_rel_type.update_layout(
-        title="Operational Reliability (%)（機種別） & イレギュラー件数（月別・直近12か月）",
+        title="Operational Reliability (%)（機種別） & DLY件数（月別・直近12か月）",
         xaxis=dict(type="date", title="年月", tickformat="%Y-%m"),
         yaxis=dict(title="Operational Reliability (%)", side="left", range=[y_lower, 100]),
-        yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
+        yaxis2=dict(title="DLY件数", overlaying="y", side="right"),
         barmode="overlay",
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0)
@@ -412,9 +412,9 @@ else:
 
 
 # -------------------------------
-# 📊 イレギュラー件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ + フィルタ
+# 📊 DLY件数（ATA別・上位50位） 機種別（左右並び） + 円グラフ + フィルタ
 # -------------------------------
-st.subheader("イレギュラー件数（ATA別・上位50位） 機種別 + 比率")
+st.subheader("DLY件数（ATA別・上位50位） 機種別 + 比率")
 
 # 期間選択
 min_date = df_irregular["Date"].min().date()
@@ -483,7 +483,7 @@ else:
             ))
 
             fig_bar.update_layout(
-                title=f"イレギュラー件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date}",
+                title=f"DLY件数（ATA別・上位50位） - {ac_type}  {start_date} 〜 {end_date}",
                 xaxis_title="ATA SubChapter",
                 yaxis_title=yaxis_title,
                 xaxis=dict(
@@ -510,7 +510,7 @@ else:
             fig_pie.update_traces(textposition="inside", textinfo="percent+label")
             st.plotly_chart(fig_pie, use_container_width=True)
 
-# --- Reliability グラフの下にイレギュラー内容の表を追加 ---
+# --- Reliability グラフの下にDLY内容の表を追加 ---
 st.subheader("✈Data")
 
 # 表示列
@@ -746,7 +746,7 @@ else:
 
 
 # --- Selected ATA Monthly Count 下に Tail別積み上げグラフに続き、イレギュラー表を追加 ---
-st.subheader(f"📋 {selected_ata_subchapter} のイレギュラー詳細（Tail別）")
+st.subheader(f"📋 {selected_ata_subchapter} のDLY詳細（Tail別）")
 
 # 表示したい列（不要列削除・追加）
 irreg_display_cols_sub = [
@@ -1409,6 +1409,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
