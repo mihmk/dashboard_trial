@@ -183,7 +183,7 @@ monthly_by_type = monthly_by_type.rename(columns={
     'A350-1000': 'Defect_A350-1000'
 })
 
-# イレギュラー（月別）
+# DLY（月別）
 monthly_irregular = (
     df_irregular_filtered.groupby(['YearMonth', 'Aircraft_Type'])
     .size()
@@ -213,19 +213,19 @@ for col in ["Defect_A350-900", "Defect_A350-1000", "Defect_Total"]:
         name=f"不具合 {col.replace('Defect_', '')}",
         yaxis="y1"
     ))
-# 棒（イレギュラー）- 右軸
+# 棒（DLY）- 右軸
 fig_total.add_trace(go.Bar(
     x=monthly_combined["YearMonth"],
     y=monthly_combined["Irreg_Total"],
-    name="イレギュラー件数",
+    name="DLY件数",
     yaxis="y2",
     opacity=0.5
 ))
 fig_total.update_layout(
-    title="A350全体・機種別 月別不具合件数 & イレギュラー件数",
+    title="A350全体・機種別 月別FLT SQ件数 & DLY件数",
     xaxis=dict(type="category", title="年月"),
-    yaxis=dict(title="不具合件数", side="left"),
-    yaxis2=dict(title="イレギュラー件数", overlaying="y", side="right"),
+    yaxis=dict(title="FLT SQ件数", side="left"),
+    yaxis2=dict(title="DLY件数", overlaying="y", side="right"),
     barmode="overlay"
 )
 st.plotly_chart(fig_total, use_container_width=True)
@@ -1409,6 +1409,7 @@ if st.button("検索"):
             st.warning("この機能はWindows環境（SAP GUIがインストールされている環境）でのみ利用できます。")
     else:
         st.warning("すべての入力欄（XX・YYYYY・Z）を正しく入力してください。")
+
 
 
 
